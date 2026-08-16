@@ -9,7 +9,7 @@
     vm_count: 3
     vm_ip_base: "192.168.40."
     vm_ip_start: 160
-    external_port_base: 2003
+    external_port_base: 2160
 
   tasks:
     - name: Ensure iptables-persistent is installed
