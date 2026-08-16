@@ -38,7 +38,7 @@ resource "proxmox_sdn_applier" "commit" {
   ]
 }
 
-
+// Firewall
 
 
 
@@ -92,8 +92,47 @@ resource "proxmox_virtual_environment_vm" "it_2003_vm" {
   }
   network_device {
     bridge = proxmox_sdn_vnet.it_2003_vnet.id
+    firewall=true
   }
   depends_on = [
     proxmox_sdn_applier.commit
   ]
+}
+
+
+// Firewall
+
+resource "proxmox_virtual_environment_firewall_options" "it_2003_fw_opts" {
+  count     = 3
+  node_name = proxmox_virtual_environment_vm.it_2003_vm[count.index].node_name
+  vm_id     = proxmox_virtual_environment_vm.it_2003_vm[count.index].vm_id
+  input_policy = "ACCEPT"
+  output_policy = "ACCEPT"
+  enabled   = true
+}
+
+resource "proxmox_virtual_environment_firewall_rules" "it_2003_outbound" {
+  count = 3
+
+  depends_on = [
+    proxmox_virtual_environment_vm.it_2003_vm,
+  ]
+
+  node_name = proxmox_virtual_environment_vm.it_2003_vm[count.index].node_name
+  vm_id     = proxmox_virtual_environment_vm.it_2003_vm[count.index].vm_id
+
+ rule {
+    type    = "out"
+    action  = "ACCEPT"
+    comment = "Allow to acccess internal ingress's Traefik"
+    dest    = "192.168.1.230/32"
+  }
+  # --- Deny all other outbound traffic to the LAN subnet ---
+  rule {
+    type    = "out"
+    action  = "DROP"
+    comment = "Deny ALL outbound to LAN subnet"
+    dest    = "192.168.1.0/24"
+    log     = "warning"
+  }
 }
