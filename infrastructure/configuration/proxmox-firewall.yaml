@@ -1,0 +1,73 @@
+---
+- name: Configure DNAT port-forwarding for SSH to it-2003 VMs
+  hosts: proxmox-server
+  become: true
+  vars:
+    external_interface: "vmbr0"
+    internal_bridge: "it2003"
+    ssh_internal_port: 22
+    vm_count: 3
+    vm_ip_base: "192.168.40."
+    vm_ip_start: 160
+    external_port_base: 2003
+
+  tasks:
+    - name: Ensure iptables-persistent is installed
+      ansible.builtin.apt:
+        name: iptables-persistent
+        state: present
+
+    - name: Enable IP forwarding
+      ansible.posix.sysctl:
+        name: net.ipv4.ip_forward
+        value: "1"
+        sysctl_set: true
+        state: present
+        reload: true
+
+    - name: DNAT external port to each VM's SSH port
+      ansible.builtin.iptables:
+        table: nat
+        chain: PREROUTING
+        in_interface: "{{ external_interface }}"
+        protocol: tcp
+        destination_port: "{{ external_port_base + item }}"
+        jump: DNAT
+        to_destination: "{{ vm_ip_base }}{{ vm_ip_start + item }}:{{ ssh_internal_port }}"
+        action: insert
+        rule_num: 1
+        state: present
+        comment: "DNAT SSH: ext {{ external_port_base + item }} -> it-2003-ubuntu2404-{{ item }}"
+      loop: "{{ range(0, vm_count) | list }}"
+
+    - name: Allow forwarded traffic to reach the VMs
+      ansible.builtin.iptables:
+        chain: FORWARD
+        protocol: tcp
+        destination: "{{ vm_ip_base }}{{ vm_ip_start + item }}"
+        destination_port: "{{ ssh_internal_port }}"
+        jump: ACCEPT
+        action: insert
+        rule_num: 1
+        state: present
+        comment: "Allow forwarded SSH to it-2003-ubuntu2404-{{ item }}"
+      loop: "{{ range(0, vm_count) | list }}"
+
+    # - name: MASQUERADE return traffic from VMs back out
+    #   ansible.builtin.iptables:
+    #     table: nat
+    #     chain: POSTROUTING
+    #     out_interface: "{{ internal_bridge }}"
+    #     protocol: tcp
+    #     destination: "{{ vm_ip_base }}{{ vm_ip_start + item }}"
+    #     destination_port: "{{ ssh_internal_port }}"
+    #     jump: MASQUERADE
+    #     action: insert
+    #     rule_num: 1
+    #     state: present
+    #     comment: "MASQUERADE SSH to it-2003-ubuntu2404-{{ item }}"
+    #   loop: "{{ range(0, vm_count) | list }}"
+
+    - name: Save iptables rules persistently
+      ansible.builtin.command: netfilter-persistent save
+      changed_when: true
