@@ -1,0 +1,53 @@
+---
+- name: Create dedicated users mapped from public key files
+  hosts: it2003_lab
+  become: true
+  vars:
+    keys_dir: "{{ playbook_dir }}/keys"
+
+  tasks:
+  - name: Discover all public key files
+    ansible.builtin.find:
+      paths: "{{ keys_dir }}"
+      patterns: "*.pub"
+    register: pubkey_files
+    delegate_to: localhost
+    become: false
+    run_once: true
+
+  - name: Build username -> key path mapping
+    ansible.builtin.set_fact:
+      key_users: "{{ key_users | default({}) | combine({ (item.path | basename | regex_replace('\\.pub$', '')): item.path }) }}"
+    loop: "{{ pubkey_files.files }}"
+    become: false
+    run_once: true
+
+  - name: Ensure sudo group exists
+    ansible.builtin.group:
+      name: sudo
+      state: present
+
+  - name: Create dedicated user per key file
+    ansible.builtin.user:
+      name: "{{ item.key }}"
+      groups: sudo
+      append: true
+      shell: /bin/bash
+      create_home: true
+      state: present
+    loop: "{{ key_users | dict2items }}"
+
+  - name: Deploy each user's SSH key
+    ansible.posix.authorized_key:
+      user: "{{ item.key }}"
+      state: present
+      key: "{{ lookup('file', item.value) }}"
+    loop: "{{ key_users | dict2items }}"
+
+  - name: Allow passwordless sudo for these users
+    ansible.builtin.copy:
+      dest: "/etc/sudoers.d/{{ item.key }}"
+      content: "{{ item.key }} ALL=(ALL) NOPASSWD:ALL\n"
+      mode: '0440'
+      validate: 'visudo -cf %s'
+    loop: "{{ key_users | dict2items }}"
