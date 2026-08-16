@@ -1,0 +1,37 @@
+---
+# playbook: ensure-teleport-dns.yml
+# Ensures teleport.datrollout.dev resolves to 192.168.1.230
+# via /etc/hosts entry on target hosts.
+
+- name: Ensure teleport.datrollout.dev resolves correctly
+  hosts: all
+  become: true
+  vars:
+    teleport_hostname: "teleport.datrollout.dev"
+    teleport_ip: "192.168.1.230"
+
+  tasks:
+  - name: Remove any stale entries for teleport.datrollout.dev
+    ansible.builtin.lineinfile:
+      path: /etc/hosts
+      regexp: '^\S+\s+{{ teleport_hostname }}\s*$'
+      state: absent
+
+  - name: Add correct /etc/hosts entry for teleport.datrollout.dev
+    ansible.builtin.lineinfile:
+      path: /etc/hosts
+      line: "{{ teleport_ip }}\t{{ teleport_hostname }}"
+      state: present
+      create: true
+      insertafter: EOF
+
+  - name: Verify resolution
+    ansible.builtin.command:
+      cmd: "getent hosts {{ teleport_hostname }}"
+    register: resolve_check
+    changed_when: false
+    failed_when: teleport_ip not in resolve_check.stdout
+
+  - name: Show resolution result
+    ansible.builtin.debug:
+      msg: "{{ teleport_hostname }} resolves to: {{ resolve_check.stdout }}"
