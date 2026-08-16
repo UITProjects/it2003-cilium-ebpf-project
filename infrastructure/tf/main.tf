@@ -79,8 +79,8 @@ resource "proxmox_virtual_environment_vm" "it_2003_vm" {
     }
   }
   memory {
-    dedicated = 4096
-    floating  = 2048
+    dedicated = 6144
+    floating  = 4096
   }
   disk {
     datastore_id = "local-lvm"
