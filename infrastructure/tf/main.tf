@@ -121,12 +121,6 @@ resource "proxmox_virtual_environment_firewall_rules" "it_2003_outbound" {
   node_name = proxmox_virtual_environment_vm.it_2003_vm[count.index].node_name
   vm_id     = proxmox_virtual_environment_vm.it_2003_vm[count.index].vm_id
 
- rule {
-    type    = "out"
-    action  = "ACCEPT"
-    comment = "Allow to acccess internal ingress's Traefik"
-    dest    = "192.168.1.230/32"
-  }
   # --- Deny all other outbound traffic to the LAN subnet ---
   rule {
     type    = "out"
