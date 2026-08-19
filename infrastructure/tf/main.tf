@@ -92,6 +92,48 @@ resource "proxmox_virtual_environment_vm" "it_2003_vm" {
 }
 
 
+resource "proxmox_virtual_environment_vm" "it_2003_vpn_vm" {
+  name      = "it-2003-vpn-server"
+  node_name = local.node_name
+  tags      = ["course-project"]
+  cpu {
+    cores = 2
+  }
+  stop_on_destroy = true
+  initialization {
+    ip_config {
+      ipv4 {
+        address = "192.168.40.10/24"
+        gateway = "192.168.40.1"
+      }
+    }
+    user_account {
+      username = "it2003"
+      keys     = values(local.ssh_users)
+    }
+  }
+  memory {
+    dedicated = 2048
+    floating  = 1024
+  }
+  disk {
+    datastore_id = "local-lvm"
+    import_from  = proxmox_download_file.ubuntu_cloud_image.id
+    interface    = "virtio0"
+    iothread     = true
+    discard      = "on"
+    size         = 30
+  }
+  network_device {
+    bridge = proxmox_sdn_vnet.it_2003_vnet.id
+    firewall=true
+  }
+  depends_on = [
+    proxmox_sdn_applier.commit
+  ]
+}
+
+
 // Firewall
 
 resource "proxmox_virtual_environment_firewall_options" "it_2003_fw_opts" {
