@@ -41,14 +41,6 @@ resource "proxmox_sdn_applier" "commit" {
 // Firewall
 
 
-
-
-
-
-
-
-
-
 resource "proxmox_download_file" "ubuntu_cloud_image" {
   content_type = "import"
   datastore_id = "local"
@@ -62,8 +54,8 @@ resource "proxmox_virtual_environment_vm" "it_2003_vm" {
   node_name = local.node_name
   tags      = ["course-project"]
   cpu {
-    cores = 8
-    type  = "x86-64-v2-AES"
+    cores = 4
+    type  = "host"
   }
   stop_on_destroy = true
   initialization {
@@ -80,7 +72,7 @@ resource "proxmox_virtual_environment_vm" "it_2003_vm" {
   }
   memory {
     dedicated = 6144
-    floating  = 4096
+    floating  = 6144
   }
   disk {
     datastore_id = "local-lvm"
