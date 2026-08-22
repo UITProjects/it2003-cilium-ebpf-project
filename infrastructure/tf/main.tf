@@ -83,8 +83,8 @@ resource "proxmox_virtual_environment_vm" "it_2003_vm" {
     size         = 120
   }
   network_device {
-    bridge = proxmox_sdn_vnet.it_2003_vnet.id
-    firewall=true
+    bridge   = proxmox_sdn_vnet.it_2003_vnet.id
+    firewall = true
   }
   depends_on = [
     proxmox_sdn_applier.commit
@@ -107,6 +107,12 @@ resource "proxmox_virtual_environment_vm" "it_2003_vpn_vm" {
         gateway = "192.168.40.1"
       }
     }
+    ip_config {
+      ipv4 {
+        address = "192.168.1.179/24"
+        gateway = "192.168.1.1"
+      }
+    }
     user_account {
       username = "it2003"
       keys     = values(local.ssh_users)
@@ -125,8 +131,12 @@ resource "proxmox_virtual_environment_vm" "it_2003_vpn_vm" {
     size         = 30
   }
   network_device {
-    bridge = proxmox_sdn_vnet.it_2003_vnet.id
-    firewall=true
+    bridge   = proxmox_sdn_vnet.it_2003_vnet.id
+    firewall = true
+  }
+  network_device {
+    bridge   = "vmbr0"
+    firewall = true
   }
   depends_on = [
     proxmox_sdn_applier.commit
@@ -137,12 +147,12 @@ resource "proxmox_virtual_environment_vm" "it_2003_vpn_vm" {
 // Firewall
 
 resource "proxmox_virtual_environment_firewall_options" "it_2003_fw_opts" {
-  count     = 3
-  node_name = proxmox_virtual_environment_vm.it_2003_vm[count.index].node_name
-  vm_id     = proxmox_virtual_environment_vm.it_2003_vm[count.index].vm_id
-  input_policy = "ACCEPT"
+  count         = 3
+  node_name     = proxmox_virtual_environment_vm.it_2003_vm[count.index].node_name
+  vm_id         = proxmox_virtual_environment_vm.it_2003_vm[count.index].vm_id
+  input_policy  = "ACCEPT"
   output_policy = "ACCEPT"
-  enabled   = true
+  enabled       = true
 }
 
 resource "proxmox_virtual_environment_firewall_rules" "it_2003_outbound" {

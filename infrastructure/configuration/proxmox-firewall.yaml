@@ -1,5 +1,5 @@
 ---
-- name: Configure DNAT port-forwarding for SSH to it-2003 VMs
+- name: Configure DNAT port-forwarding to it-2003 VMs
   hosts: proxmox-server
   become: true
   vars:
@@ -52,7 +52,7 @@
         state: present
         comment: "Allow forwarded SSH to it-2003-ubuntu2404-{{ item }}"
       loop: "{{ range(0, vm_count) | list }}"
-
+      
     - name: DNAT external port 2443 to K8s API server (192.168.40.160:6443)
       ansible.builtin.iptables:
         table: nat
