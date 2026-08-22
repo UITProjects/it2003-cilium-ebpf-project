@@ -107,20 +107,15 @@ resource "proxmox_virtual_environment_vm" "it_2003_vpn_vm" {
         gateway = "192.168.40.1"
       }
     }
-    ip_config {
-      ipv4 {
-        address = "192.168.1.179/24"
-        gateway = "192.168.1.1"
-      }
-    }
     user_account {
       username = "it2003"
       keys     = values(local.ssh_users)
+      password = var.it2003_vpn_password
     }
   }
   memory {
-    dedicated = 2048
-    floating  = 1024
+    dedicated = 1024
+    floating  = 512
   }
   disk {
     datastore_id = "local-lvm"
@@ -132,10 +127,6 @@ resource "proxmox_virtual_environment_vm" "it_2003_vpn_vm" {
   }
   network_device {
     bridge   = proxmox_sdn_vnet.it_2003_vnet.id
-    firewall = true
-  }
-  network_device {
-    bridge   = "vmbr0"
     firewall = true
   }
   depends_on = [
@@ -154,6 +145,14 @@ resource "proxmox_virtual_environment_firewall_options" "it_2003_fw_opts" {
   output_policy = "ACCEPT"
   enabled       = true
 }
+resource "proxmox_virtual_environment_firewall_options" "it_2003_vpn_fw_opts" {
+  node_name     = local.node_name
+  vm_id         = proxmox_virtual_environment_vm.it_2003_vpn_vm.vm_id
+  input_policy  = "ACCEPT"
+  output_policy = "ACCEPT"
+  enabled       = true
+}
+
 
 resource "proxmox_virtual_environment_firewall_rules" "it_2003_outbound" {
   count = 3
@@ -170,6 +169,28 @@ resource "proxmox_virtual_environment_firewall_rules" "it_2003_outbound" {
     type    = "out"
     action  = "DROP"
     comment = "Deny ALL outbound to LAN subnet"
+    dest    = "192.168.1.0/24"
+    log     = "warning"
+  }
+}
+resource "proxmox_virtual_environment_firewall_rules" "it_2003_outbound_vpn" {
+  depends_on = [
+    proxmox_virtual_environment_vm.it_2003_vpn_vm,
+  ]
+  node_name = local.node_name
+  vm_id     = proxmox_virtual_environment_vm.it_2003_vpn_vm.vm_id
+  rule {
+    type    = "out"
+    action  = "ACCEPT"
+    comment = "it2003: Allow myself"
+    source  = "192.168.40.0/24"
+    dest    = "192.168.1.2/32"
+    log     = "info"
+  }
+  rule {
+    type    = "out"
+    action  = "DROP"
+    comment = "it2003: Deny ALL outbound to LAN subnet"
     dest    = "192.168.1.0/24"
     log     = "warning"
   }

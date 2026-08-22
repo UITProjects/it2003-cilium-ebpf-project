@@ -52,31 +52,44 @@
         state: present
         comment: "Allow forwarded SSH to it-2003-ubuntu2404-{{ item }}"
       loop: "{{ range(0, vm_count) | list }}"
-      
-    - name: DNAT external port 2443 to K8s API server (192.168.40.160:6443)
+
+    - name: DNAT external port 2194 to OpenVPN server (192.168.40.10:1194 UDP)
       ansible.builtin.iptables:
         table: nat
         chain: PREROUTING
-        in_interface: "{{ external_interface }}"
-        protocol: tcp
-        destination_port: 2443
+        in_interface: "vmbr0"
+        protocol: udp
+        destination_port: 2194
         jump: DNAT
-        to_destination: "192.168.40.160:6443"
+        to_destination: "192.168.40.10:1194"
         action: insert
         rule_num: 1
         state: present
-        comment: "IT2003: DNAT K8s API: ext 2443 -> 192.168.40.160:6443"
-    - name: Allow forwarded traffic to reach K8s API server
+        comment: "IT2003: DNAT OpenVPN: ext 2194/udp -> 192.168.40.10:1194"
+    - name: Allow forwarded traffic to reach the OpenVPN server
       ansible.builtin.iptables:
         chain: FORWARD
-        protocol: tcp
-        destination: "192.168.40.160"
-        destination_port: 6443
+        protocol: udp
+        destination: "192.168.40.10"
+        destination_port: 2194
         jump: ACCEPT
         action: insert
         rule_num: 1
         state: present
-        comment: "IT2003: Allow forwarded HTTPS/K8s API to 192.168.40.160"
+        comment: "IT2003: Allow forwarded OpenVPN UDP to 192.168.40.10"
     - name: Save iptables rules persistently
       ansible.builtin.command: netfilter-persistent save
+      changed_when: true
+    - name: Add static route file for VPN client subnet
+      ansible.builtin.copy:
+        dest: /etc/network/interfaces.d/vpn-routes
+        content: |
+          # Managed by Ansible - static route for OpenVPN client subnet
+          post-up ip route replace 10.8.0.0/24 via 192.168.40.10
+          post-down ip route del 10.8.0.0/24 via 192.168.40.10 || true
+        owner: root
+        group: root
+        mode: "0644"
+    - name: Apply the route immediately (idempotent)
+      ansible.builtin.command: ip route replace 10.8.0.0/24 via 192.168.40.10
       changed_when: true
