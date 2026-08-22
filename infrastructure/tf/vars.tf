@@ -11,3 +11,7 @@ variable "proxmox_username" {
   type      = string
   sensitive = true
 }
+variable "it2003_vpn_password" {
+  type      = string
+  sensitive = true
+}
