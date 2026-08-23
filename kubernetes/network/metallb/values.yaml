@@ -1,8 +1,0 @@
-# https://artifacthub.io/packages/helm/metallb/metallb/0.16.0?modal=values
-metallb:
-  prometheus:
-    prometheusRule:
-      enabled: false
-    prometheus:
-      serviceMonitor:
-        enabled: false

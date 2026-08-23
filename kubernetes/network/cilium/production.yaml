@@ -15,13 +15,15 @@ ipam:
 operator:
   replicas: 1
 
-hubble:
+l2announcements:
   enabled: true
+hubble:
+  enabled: false
   relay:
-    enabled: true
+    enabled: false
   ui:
-    enabled: true
+    enabled: false
     service:
       type: "LoadBalancer"
       annotations:
-        metallb.universe.tf/LoadBalancerIPs: "192.168.40.131"
+        lbipam.cilium.io/ips: "192.168.40.132"
