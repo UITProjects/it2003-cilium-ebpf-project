@@ -1,3 +1,4 @@
+# https://artifacthub.io/packages/helm/cilium/cilium/1.20.1?modal=values
 kubeProxyReplacement: true
 namespaceOverride: "kube-system"
 routingMode: native
@@ -13,3 +14,14 @@ ipam:
   mode: "kubernetes"
 operator:
   replicas: 1
+
+hubble:
+  enabled: true
+  relay:
+    enabled: true
+  ui:
+    enabled: true
+    service:
+      type: "LoadBalancer"
+      annotations:
+        metallb.universe.tf/LoadBalancerIPs: "192.168.40.131"
