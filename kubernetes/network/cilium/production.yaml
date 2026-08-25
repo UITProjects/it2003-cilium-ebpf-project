@@ -18,11 +18,14 @@ operator:
 l2announcements:
   enabled: true
 hubble:
-  enabled: false
+  enabled: true
   relay:
-    enabled: false
+    tls:
+      server:
+        enabled: true
+    enabled: true
   ui:
-    enabled: false
+    enabled: true
     service:
       type: "LoadBalancer"
       annotations:
