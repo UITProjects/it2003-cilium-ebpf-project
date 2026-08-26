@@ -1,3 +1,4 @@
+# https://artifacthub.io/packages/helm/cilium/cilium/1.20.1?modal=values
 kubeProxyReplacement: true
 namespaceOverride: "kube-system"
 routingMode: native
@@ -13,3 +14,19 @@ ipam:
   mode: "kubernetes"
 operator:
   replicas: 1
+
+l2announcements:
+  enabled: true
+hubble:
+  enabled: true
+  relay:
+    tls:
+      server:
+        enabled: true
+    enabled: true
+  ui:
+    enabled: true
+    service:
+      type: "LoadBalancer"
+      annotations:
+        lbipam.cilium.io/ips: "192.168.40.132"
