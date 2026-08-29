@@ -41,10 +41,10 @@ kube-prometheus-stack:
       scrapeInterval: 10s
       resources:
         requests:
-          cpu: 100m
-          memory: 1Gi
+          cpu: 1000m
+          memory: 2Gi
         limits:
-          cpu: 2000m
+          cpu: 4000m
           memory: 2Gi
       podMonitorSelectorNilUsesHelmValues: false
       podMonitorNamespaceSelector:
