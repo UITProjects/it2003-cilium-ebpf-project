@@ -1,0 +1,67 @@
+kube-prometheus-stack:
+  #https://artifacthub.io/packages/helm/prometheus-community/kube-prometheus-stack/88.0.1?modal=values
+  kubeEtcd:
+    enabled: false
+  kubeControllerManager:
+    enabled: false
+  kubeScheduler:
+    enabled: false
+  grafana:
+    service:
+      type: LoadBalancer
+      annotations:
+        lbipam.cilium.io/ips: "192.168.40.134"
+    defaultDashboardsTimezone: Asia/Ho_Chi_Minh
+    defaultDashboardsEditable: false
+    sidecar:
+      dashboards:
+        enabled: true
+        label: grafana_dashboard
+        searchNamespace: ALL
+    admin:
+      existingSecret: grafana-admin
+      userKey: admin-user
+      passwordKey: admin-password
+    additionalDataSources:
+    - name: loki-in-cluster
+      type: loki
+      basicAuth: false
+      editable: false
+      jsonData:
+        tlsSkipVerify: true
+      orgId: 1
+      url: http://loki.loki.svc.cluster.local:3100
+      version: 1
+  prometheus:
+    service:
+      type: LoadBalancer
+      annotations:
+        lbipam.cilium.io/ips: "192.168.40.133"
+    prometheusSpec:
+      scrapeInterval: 10s
+      resources:
+        requests:
+          cpu: 1000m
+          memory: 2Gi
+        limits:
+          cpu: 4000m
+          memory: 2Gi
+      podMonitorSelectorNilUsesHelmValues: false
+      podMonitorNamespaceSelector:
+        matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: Exists
+      serviceMonitorSelectorNilUsesHelmValues: false
+      serviceMonitorNamespaceSelector:
+        matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: Exists
+      retention: 30d
+      retentionSize: 45GiB
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            accessModes: [ "ReadWriteOnce" ]
+            resources:
+              requests:
+                storage: 20Gi

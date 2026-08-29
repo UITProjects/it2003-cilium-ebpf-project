@@ -14,19 +14,46 @@ ipam:
   mode: "kubernetes"
 operator:
   replicas: 1
-
+  dashboards:
+    enabled: true
+  prometheus:
+    metricsService: true
+    enabled: true
+    serviceMonitor:
+      enabled: true
 l2announcements:
   enabled: true
 hubble:
   enabled: true
   relay:
+    enabled: true
     tls:
       server:
         enabled: true
-    enabled: true
+    prometheus:
+      enabled: true
+      serviceMonitor:
+        enabled: true
   ui:
     enabled: true
     service:
       type: "LoadBalancer"
       annotations:
         lbipam.cilium.io/ips: "192.168.40.132"
+  metrics:
+    dashboards:
+      enabled: true
+envoy:
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+prometheus:
+  metricsService: true
+  enabled: true
+  port: 9962
+  serviceMonitor:
+    # This requires the prometheus CRDs to be available (see https://github.com/prometheus-operator/prometheus-operator/blob/main/example/prometheus-operator-crd/monitoring.coreos.com_servicemonitors.yaml)
+    enabled: true
+dashboards:
+  enabled: true
