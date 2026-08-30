@@ -1,0 +1,33 @@
+alloy:
+  # https://artifacthub.io/packages/helm/grafana/alloy/1.11.0?modal=values
+  alloy:
+    extraEnv:
+    - name: GOMEMLIMIT
+      value: "220MiB"
+    - name: GOGC
+      value: "100"
+    - name: GOMAXPROCS
+    value: "1"
+    resources:
+      requests:
+        cpu: 200m
+        memory: 128Mi
+      limits:
+        cpu: 1000m
+        memory: 256Mi
+    mounts:
+      varlog: true
+      dockercontainers: false
+    configMap:
+      # Disabled: reusing the configMap already created by a previous release of this chart
+      create: false
+      name: alloy
+      key: config.alloy
+  clustering:
+    enabled: false
+  controller:
+    tolerations:
+    - effect: NoSchedule
+      key: node-role.kubernetes.io/control-plane
+      operator: Exists
+    type: 'daemonset'
