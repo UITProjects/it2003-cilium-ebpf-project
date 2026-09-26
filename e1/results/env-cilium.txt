@@ -1,0 +1,130 @@
+# setup=cilium  date=2026-09-26T11:17:04Z  server=it-2003-ubuntu2404-1  client=it-2003-ubuntu2404-2
+Client Version: v1.32.13
+Kustomize Version: v5.5.0
+Server Version: v1.35.8
+WARNING: version difference between client (1.32) and server (1.35) exceeds the supported minor version skew of +/-1
+NAME                   STATUS   ROLES           AGE   VERSION   INTERNAL-IP      EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION      CONTAINER-RUNTIME
+it-2003-ubuntu2404-0   Ready    control-plane   36d   v1.35.7   192.168.40.160   <none>        Ubuntu 24.04.4 LTS   6.8.0-138-generic   containerd://2.2.1
+it-2003-ubuntu2404-1   Ready    <none>          35d   v1.35.8   192.168.40.161   <none>        Ubuntu 24.04.4 LTS   6.8.0-138-generic   containerd://2.2.1
+it-2003-ubuntu2404-2   Ready    <none>          35d   v1.35.8   192.168.40.162   <none>        Ubuntu 24.04.4 LTS   6.8.0-138-generic   containerd://2.2.1
+## cilium status
+KVStore:                Disabled   
+Kubernetes:             Ok         1.35 (v1.35.8) [linux/amd64]
+Kubernetes APIs:        ["cilium/v2::CiliumCIDRGroup", "cilium/v2::CiliumClusterwideNetworkPolicy", "cilium/v2::CiliumEndpoint", "cilium/v2::CiliumNetworkPolicy", "cilium/v2::CiliumNode", "core/v1::Pods", "networking.k8s.io/v1::NetworkPolicy"]
+KubeProxyReplacement:   True   [eth0   192.168.40.162 fe80::be24:11ff:febf:b67 (Direct Routing)]
+Host firewall:          Disabled
+SRv6:                   Disabled
+CNI Chaining:           none
+CNI Config file:        successfully wrote CNI configuration file to /host/etc/cni/net.d/05-cilium.conflist
+Cilium:                 Ok   1.20.1 (v1.20.1-7d68cfb3)
+NodeMonitor:            Listening for events on 4 CPUs with 64x4096 of shared memory
+Cilium health daemon:   Ok   
+IPAM:                   IPv4: 14/254 allocated from 10.244.2.0/24, 
+Allocated addresses:
+  10.244.2.105 (health)
+  10.244.2.159 (microservices-google-demo/frontend-fdd86794-kwckr [restored])
+  10.244.2.167 (router)
+  10.244.2.179 (microservices-google-demo/loadgenerator-755b9568fd-wds79 [restored])
+  10.244.2.182 (microservices-google-demo/adservice-5f7c6d967f-l4fgw [restored])
+  10.244.2.20 (kube-prometheus-stack/kube-prometheus-stack-kube-state-metrics-5945c87df-ggj79 [restored])
+  10.244.2.212 (alloy/alloy-424zx)
+  10.244.2.222 (kube-system/hubble-ui-5786c477b6-5w4qv [restored])
+  10.244.2.243 (microservices-google-demo/productcatalogservice-85cbf65d89-dcp2s [restored])
+  10.244.2.248 (kube-prometheus-stack/alertmanager-kube-prometheus-stack-alertmanager-0 [restored])
+  10.244.2.48 (microservices-google-demo/redis-cart-6899b65948-g9m6g [restored])
+  10.244.2.64 (microservices-google-demo/paymentservice-6fb99579c7-hlxjm [restored])
+  10.244.2.65 (loki/loki-canary-cdb54)
+  10.244.2.93 (kube-prometheus-stack/prometheus-kube-prometheus-stack-prometheus-0)
+IPv4 BIG TCP:           Disabled
+IPv6 BIG TCP:           Disabled
+BandwidthManager:       Disabled
+Routing:                Network: Native   Host: BPF
+Attach Mode:            TCX
+Device Mode:            veth
+Masquerading:           BPF   [eth0]   10.244.0.0/16  [IPv4: Enabled, IPv6: Disabled]
+Clock Source for BPF:   ktime
+Controller Status:      83/83 healthy
+  Name                                                                                            Last success     Last error   Count   Message
+  cilium-health-ep                                                                                1m2s ago         never        0       no error   
+  ct-map-pressure                                                                                 12s ago          never        0       no error   
+  endpoint-1379-regeneration-recovery                                                             never            never        0       no error   
+  endpoint-1605-regeneration-recovery                                                             never            never        0       no error   
+  endpoint-1963-regeneration-recovery                                                             never            never        0       no error   
+  endpoint-2013-regeneration-recovery                                                             never            never        0       no error   
+  endpoint-2293-regeneration-recovery                                                             never            never        0       no error   
+  endpoint-2526-regeneration-recovery                                                             never            never        0       no error   
+  endpoint-2918-regeneration-recovery                                                             never            never        0       no error   
+  endpoint-3274-regeneration-recovery                                                             never            never        0       no error   
+  endpoint-3417-regeneration-recovery                                                             never            never        0       no error   
+  endpoint-3761-regeneration-recovery                                                             never            never        0       no error   
+  endpoint-418-regeneration-recovery                                                              never            never        0       no error   
+  endpoint-539-regeneration-recovery                                                              never            never        0       no error   
+  endpoint-74-regeneration-recovery                                                               never            never        0       no error   
+  endpoint-975-regeneration-recovery                                                              never            never        0       no error   
+  endpoint-gc                                                                                     8s ago           never        0       no error   
+  endpoint-periodic-regeneration                                                                  32s ago          never        0       no error   
+  ipcache-inject-labels                                                                           42s ago          never        0       no error   
+  k8s-heartbeat                                                                                   19s ago          never        0       no error   
+  resolve-identity-1605                                                                           2m47s ago        never        0       no error   
+  resolve-identity-2013                                                                           2m59s ago        never        0       no error   
+  resolve-identity-3417                                                                           4m27s ago        never        0       no error   
+  resolve-identity-539                                                                            34s ago          never        0       no error   
+  resolve-labels-/                                                                                668h50m42s ago   never        0       no error   
+  resolve-labels-alloy/alloy-424zx                                                                345h9m30s ago    never        0       no error   
+  resolve-labels-kube-prometheus-stack/alertmanager-kube-prometheus-stack-alertmanager-0          668h50m36s ago   never        0       no error   
+  resolve-labels-kube-prometheus-stack/kube-prometheus-stack-kube-state-metrics-5945c87df-ggj79   668h50m36s ago   never        0       no error   
+  resolve-labels-kube-prometheus-stack/prometheus-kube-prometheus-stack-prometheus-0              668h38m7s ago    never        0       no error   
+  resolve-labels-kube-system/hubble-ui-5786c477b6-5w4qv                                           668h50m36s ago   never        0       no error   
+  resolve-labels-loki/loki-canary-cdb54                                                           647h57m54s ago   never        0       no error   
+  resolve-labels-microservices-google-demo/adservice-5f7c6d967f-l4fgw                             668h50m36s ago   never        0       no error   
+  resolve-labels-microservices-google-demo/frontend-fdd86794-kwckr                                668h50m36s ago   never        0       no error   
+  resolve-labels-microservices-google-demo/loadgenerator-755b9568fd-wds79                         668h50m36s ago   never        0       no error   
+  resolve-labels-microservices-google-demo/paymentservice-6fb99579c7-hlxjm                        668h50m36s ago   never        0       no error   
+  resolve-labels-microservices-google-demo/productcatalogservice-85cbf65d89-dcp2s                 668h50m36s ago   never        0       no error   
+  resolve-labels-microservices-google-demo/redis-cart-6899b65948-g9m6g                            668h50m36s ago   never        0       no error   
+  restoring-ep-identity (1379)                                                                    668h50m42s ago   never        0       no error   
+  restoring-ep-identity (1963)                                                                    668h50m42s ago   never        0       no error   
+  restoring-ep-identity (2293)                                                                    668h50m42s ago   never        0       no error   
+  restoring-ep-identity (2526)                                                                    668h50m42s ago   never        0       no error   
+  restoring-ep-identity (2918)                                                                    668h50m42s ago   never        0       no error   
+  restoring-ep-identity (3274)                                                                    668h50m42s ago   never        0       no error   
+  restoring-ep-identity (3761)                                                                    668h50m42s ago   never        0       no error   
+  restoring-ep-identity (418)                                                                     668h50m42s ago   never        0       no error   
+  restoring-ep-identity (74)                                                                      668h50m42s ago   never        0       no error   
+  restoring-ep-identity (975)                                                                     668h50m42s ago   never        0       no error   
+  sync-policymap-1379                                                                             5m33s ago        never        0       no error   
+  sync-policymap-1605                                                                             12m50s ago       never        0       no error   
+  sync-policymap-1963                                                                             5m33s ago        never        0       no error   
+  sync-policymap-2013                                                                             8m4s ago         never        0       no error   
+  sync-policymap-2293                                                                             5m33s ago        never        0       no error   
+  sync-policymap-2526                                                                             5m33s ago        never        0       no error   
+  sync-policymap-2918                                                                             5m33s ago        never        0       no error   
+  sync-policymap-3274                                                                             5m33s ago        never        0       no error   
+  sync-policymap-3417                                                                             9m28s ago        never        0       no error   
+  sync-policymap-3761                                                                             5m33s ago        never        0       no error   
+  sync-policymap-418                                                                              5m33s ago        never        0       no error   
+  sync-policymap-539                                                                              5m33s ago        never        0       no error   
+  sync-policymap-74                                                                               5m33s ago        never        0       no error   
+  sync-policymap-975                                                                              5m33s ago        never        0       no error   
+  sync-to-k8s-ciliumendpoint (1379)                                                               4s ago           never        0       no error   
+  sync-to-k8s-ciliumendpoint (1605)                                                               4s ago           never        0       no error   
+  sync-to-k8s-ciliumendpoint (1963)                                                               4s ago           never        0       no error   
+  sync-to-k8s-ciliumendpoint (2013)                                                               4s ago           never        0       no error   
+  sync-to-k8s-ciliumendpoint (2293)                                                               4s ago           never        0       no error   
+  sync-to-k8s-ciliumendpoint (2526)                                                               4s ago           never        0       no error   
+  sync-to-k8s-ciliumendpoint (2918)                                                               4s ago           never        0       no error   
+  sync-to-k8s-ciliumendpoint (3417)                                                               4s ago           never        0       no error   
+  sync-to-k8s-ciliumendpoint (3761)                                                               4s ago           never        0       no error   
+  sync-to-k8s-ciliumendpoint (418)                                                                4s ago           never        0       no error   
+  sync-to-k8s-ciliumendpoint (74)                                                                 4s ago           never        0       no error   
+  sync-to-k8s-ciliumendpoint (975)                                                                4s ago           never        0       no error   
+  waiting-initial-global-identities-ep (1379)                                                     668h50m42s ago   never        0       no error   
+  waiting-initial-global-identities-ep (1963)                                                     668h50m42s ago   never        0       no error   
+  waiting-initial-global-identities-ep (2293)                                                     668h50m42s ago   never        0       no error   
+  waiting-initial-global-identities-ep (2526)                                                     668h50m42s ago   never        0       no error   
+  waiting-initial-global-identities-ep (2918)                                                     668h50m42s ago   never        0       no error   
+  waiting-initial-global-identities-ep (3761)                                                     668h50m42s ago   never        0       no error   
+  waiting-initial-global-identities-ep (418)                                                      668h50m42s ago   never        0       no error   
+  waiting-initial-global-identities-ep (74)                                                       668h50m42s ago   never        0       no error   
+  waiting-initial-global-identities-ep (975)                                                      668h50m42s ago   never        0       no error   
+  write-cni-file                                                                                  668h50m42s ago   never        0       no error   
