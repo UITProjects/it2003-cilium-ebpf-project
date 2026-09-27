@@ -54,6 +54,19 @@
       comment: "{{ comment_prefix }}: Allow forwarded SSH to it-2003-ubuntu2404-{{ vm_name_index_start + item }} ({{ vm_ip_base }}{{ vm_ip_start + item }})"
     loop: "{{ range(0, vm_count) | list }}"
 
+  - name: DNAT external port 2443 to K8s API server (192.168.50.160:6443 TCP)
+    ansible.builtin.iptables:
+      table: nat
+      chain: PREROUTING
+      in_interface: "{{ external_interface }}"
+      protocol: tcp
+      destination_port: 2444
+      jump: DNAT
+      to_destination: "192.168.50.160:6443"
+      action: insert
+      rule_num: 1
+      state: present
+      comment: "IT2003: DNAT K8s API: ext 2444 -> 192.168.50.160:6443"
   - name: Save iptables rules persistently
     ansible.builtin.command: netfilter-persistent save
     changed_when: true
