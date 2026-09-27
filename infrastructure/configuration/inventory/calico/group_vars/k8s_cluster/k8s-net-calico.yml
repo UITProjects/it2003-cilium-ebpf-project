@@ -1,0 +1,3 @@
+calico_network_backend: bird
+calico_ipip_mode: "Never"
+calico_vxlan_mode: "Never"

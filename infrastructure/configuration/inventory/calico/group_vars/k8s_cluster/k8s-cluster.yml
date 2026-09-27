@@ -1,0 +1,7 @@
+---
+kube_version: 1.35.8
+kube_network_plugin: calico
+kube_service_addresses: 110.96.0.0/12
+kube_pods_subnet: 10.244.0.0/16
+kube_proxy_mode: iptables
+kube_proxy_strict_arp: true
