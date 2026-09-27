@@ -165,11 +165,6 @@ resource "proxmox_virtual_environment_vm" "it_2003_vpn_vm" {
         gateway = "192.168.40.1"
       }
     }
-    ip_config {
-      ipv4 {
-        address = "192.168.50.10/24"
-      }
-    }
     user_account {
       username = "it2003"
       keys     = values(local.ssh_users)
@@ -190,10 +185,6 @@ resource "proxmox_virtual_environment_vm" "it_2003_vpn_vm" {
   }
   network_device {
     bridge   = proxmox_sdn_vnet.it_2003_vnet.id
-    firewall = true
-  }
-  network_device {
-    bridge   = proxmox_sdn_vnet.it_2003_vnet_b.id
     firewall = true
   }
   depends_on = [

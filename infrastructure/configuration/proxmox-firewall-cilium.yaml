@@ -85,8 +85,9 @@
         dest: /etc/network/interfaces.d/vpn-routes
         content: |
           # Managed by Ansible - static route for OpenVPN client subnet
-          post-up ip route replace 10.8.0.0/24 via 192.168.40.10
-          post-down ip route del 10.8.0.0/24 via 192.168.40.10 || true
+          iface it2003
+            post-up ip route replace 10.8.0.0/24 via 192.168.40.10
+            pre-down ip route del 10.8.0.0/24 via 192.168.40.10 || true
         owner: root
         group: root
         mode: "0644"
