@@ -1,3 +1,6 @@
 [submodule "microservices-demo"]
 	path = microservices-demo
 	url = https://github.com/GoogleCloudPlatform/microservices-demo.git
+[submodule "infrastructure/configuration/kubespray"]
+	path = infrastructure/configuration/kubespray
+	url = https://github.com/kubernetes-sigs/kubespray.git
