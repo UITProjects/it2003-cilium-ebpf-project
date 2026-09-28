@@ -41,7 +41,7 @@ export KUBECONFIG=$KCFG
 # shellcheck source=lib.sh
 source "$DIR/scripts/lib.sh"
 
-SIZES=${SIZES:-"10 100 500 1000 2000 5000"}
+SIZES=${SIZES:-"100 500 2000 10000 15000"}
 RUNS=${RUNS:-3}
 CSV=${CSV:-$DIR/results/e1.csv}
 SETTLE=${SETTLE:-20}

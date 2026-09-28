@@ -6,6 +6,7 @@ Draws the 3 E1 charts from the CSV written by measure.sh:
   (b) latency (p50, p99) vs number of Services
   (c) latency (p50, p99) vs rules / entries   <- main chart
 Each point is the mean over runs, error bars are the standard deviation.
+X-axis ticks are placed exactly at the measured values (no 10^x labels).
 Also writes <e1>_summary.csv and prints a summary + a *suggested* verdict for the conclusion.
 Needs: python3, matplotlib.
 """
@@ -21,6 +22,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
+from matplotlib.ticker import FixedLocator, FuncFormatter, NullLocator  # noqa: E402
 
 STYLE = {
     "iptables": dict(color="#d62728", marker="o", label="Calico + kube-proxy (iptables)"),
@@ -91,6 +93,21 @@ def style(setup):
     return STYLE.get(setup, dict(color="gray", marker="^", label=setup))
 
 
+def exact_xticks(ax, values, rotate=False):
+    """Put x ticks exactly at the data values, printed as plain integers.
+    Must be called AFTER ax.set_xscale(), which resets the locators."""
+    vals = sorted({round(v) for v in values if not math.isnan(v)})
+    if not vals:
+        return
+    ax.xaxis.set_major_locator(FixedLocator(vals))
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:,.0f}"))
+    ax.xaxis.set_minor_locator(NullLocator())
+    if rotate:
+        ax.tick_params(axis="x", labelrotation=45)
+        for lbl in ax.get_xticklabels():
+            lbl.set_horizontalalignment("right")
+
+
 def ebar(ax, xs, ys, yerr, st, ls="-", label=None, alpha=1.0):
     ax.errorbar(xs, ys, yerr=yerr, color=st["color"], marker=st["marker"], ls=ls,
                 capsize=3, ms=5, lw=1.6, label=label, alpha=alpha)
@@ -99,6 +116,8 @@ def ebar(ax, xs, ys, yerr, st, ls="-", label=None, alpha=1.0):
 def plot(agg, rows, out_png, logx_c):
     fig, axes = plt.subplots(1, 3, figsize=(19, 5.8))
     ax_a, ax_b, ax_c = axes
+    all_n = [p["n"] for s in agg for p in agg[s]]
+    all_rules = [p["rules"][0] for s in agg for p in agg[s]]
 
     # (a) rules vs Services
     for s in setups_in(agg):
@@ -110,6 +129,7 @@ def plot(agg, rows, out_png, logx_c):
              label=st["label"] + (": nat rules" if s == "iptables" else ": bpf lb rows") + per)
     ax_a.set_xscale("log")
     ax_a.set_yscale("log")
+    exact_xticks(ax_a, all_n)
     ax_a.set_xlabel("number of Services")
     ax_a.set_ylabel("rules (iptables nat) / entries (eBPF LB map)")
     ax_a.set_title("(a) Rules / entries vs Services")
@@ -123,6 +143,7 @@ def plot(agg, rows, out_png, logx_c):
         ebar(ax_b, n, [p["p99_ms"][0] for p in pts], [p["p99_ms"][1] for p in pts], st, "--",
              f"{s} p99", alpha=0.7)
     ax_b.set_xscale("log")
+    exact_xticks(ax_b, all_n)
     ax_b.set_xlabel("number of Services")
     ax_b.set_ylabel("latency per request, new connection (ms)")
     ax_b.set_title("(b) Latency vs Services")
@@ -144,12 +165,13 @@ def plot(agg, rows, out_png, logx_c):
                       label=f"{s} p50 fit: {a * 1e7:+.1f} µs / 10k rules (r={r:.2f})")
     if logx_c:
         ax_c.set_xscale("log")
+    exact_xticks(ax_c, all_rules, rotate=True)
     ax_c.set_xlabel("rules (iptables nat) / entries (eBPF LB map) on the client node")
     ax_c.set_ylabel("latency per request, new connection (ms)")
     ax_c.set_title("(c) Latency vs rules / entries  [main chart]", fontweight="bold")
 
     for ax in axes:
-        ax.grid(True, which="both", alpha=0.3)
+        ax.grid(True, which="major", alpha=0.3)
         ax.legend(fontsize=8)
     for ax in (ax_b, ax_c):
         ax.set_ylim(bottom=0)
