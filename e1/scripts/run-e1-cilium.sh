@@ -17,7 +17,7 @@ source "$DIR/scripts/lib.sh"
 
 SETUP=${1:?usage: run-e1.sh <iptables|cilium>}
 case $SETUP in iptables|cilium) ;; *) die "setup must be iptables or cilium" ;; esac
-SIZES=${SIZES:-"100 500 2000 10000 15000"}
+SIZES=${SIZES:-"100 2080 4060 6040 8020 10000"}
 RUNS=${RUNS:-3}
 CSV=${CSV:-$DIR/results/e1.csv}
 SETTLE=${SETTLE:-20}

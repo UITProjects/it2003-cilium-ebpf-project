@@ -1,12 +1,12 @@
-# setup=iptables  context=it2003@calico  date=2026-09-27T08:36:30Z  server=it-2003-ubuntu2404-4  client=it-2003-ubuntu2404-5
+# setup=iptables  context=it2003@calico  date=2026-09-29T01:06:48Z  server=it-2003-ubuntu2404-4  client=it-2003-ubuntu2404-5  ssh_target=192.168.50.162
 Client Version: v1.32.13
 Kustomize Version: v5.5.0
 Server Version: v1.35.8
 WARNING: version difference between client (1.32) and server (1.35) exceeds the supported minor version skew of +/-1
 NAME                   STATUS   ROLES           AGE   VERSION   INTERNAL-IP      EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION      CONTAINER-RUNTIME
-it-2003-ubuntu2404-3   Ready    control-plane   47m   v1.35.8   192.168.50.160   <none>        Ubuntu 24.04.5 LTS   6.8.0-142-generic   containerd://2.3.5
-it-2003-ubuntu2404-4   Ready    <none>          46m   v1.35.8   192.168.50.161   <none>        Ubuntu 24.04.5 LTS   6.8.0-142-generic   containerd://2.3.5
-it-2003-ubuntu2404-5   Ready    <none>          46m   v1.35.8   192.168.50.162   <none>        Ubuntu 24.04.5 LTS   6.8.0-142-generic   containerd://2.3.5
+it-2003-ubuntu2404-3   Ready    control-plane   41h   v1.35.8   192.168.50.160   <none>        Ubuntu 24.04.5 LTS   6.8.0-142-generic   containerd://2.3.5
+it-2003-ubuntu2404-4   Ready    <none>          41h   v1.35.8   192.168.50.161   <none>        Ubuntu 24.04.5 LTS   6.8.0-142-generic   containerd://2.3.5
+it-2003-ubuntu2404-5   Ready    <none>          41h   v1.35.8   192.168.50.162   <none>        Ubuntu 24.04.5 LTS   6.8.0-142-generic   containerd://2.3.5
 ## kube-proxy config
 apiVersion: kubeproxy.config.k8s.io/v1alpha1
 bindAddress: 0.0.0.0
@@ -104,4 +104,4 @@ spec:
   wireguardEnabled: false
 ## ip pools
 NAME           AGE
-default-pool   46m
+default-pool   41h
