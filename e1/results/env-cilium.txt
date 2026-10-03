@@ -1,0 +1,130 @@
+# setup=cilium  date=2026-09-28T23:20:11Z  server=it-2003-ubuntu2404-1  client=it-2003-ubuntu2404-2
+Client Version: v1.32.13
+Kustomize Version: v5.5.0
+Server Version: v1.35.8
+WARNING: version difference between client (1.32) and server (1.35) exceeds the supported minor version skew of +/-1
+NAME                   STATUS   ROLES           AGE   VERSION   INTERNAL-IP      EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION      CONTAINER-RUNTIME
+it-2003-ubuntu2404-0   Ready    control-plane   38d   v1.35.7   192.168.40.160   <none>        Ubuntu 24.04.4 LTS   6.8.0-142-generic   containerd://2.2.1
+it-2003-ubuntu2404-1   Ready    <none>          37d   v1.35.8   192.168.40.161   <none>        Ubuntu 24.04.4 LTS   6.8.0-142-generic   containerd://2.2.1
+it-2003-ubuntu2404-2   Ready    <none>          37d   v1.35.8   192.168.40.162   <none>        Ubuntu 24.04.4 LTS   6.8.0-142-generic   containerd://2.2.1
+## cilium status
+KVStore:                Disabled   
+Kubernetes:             Ok         1.35 (v1.35.8) [linux/amd64]
+Kubernetes APIs:        ["cilium/v2::CiliumCIDRGroup", "cilium/v2::CiliumClusterwideNetworkPolicy", "cilium/v2::CiliumEndpoint", "cilium/v2::CiliumNetworkPolicy", "cilium/v2::CiliumNode", "core/v1::Pods", "networking.k8s.io/v1::NetworkPolicy"]
+KubeProxyReplacement:   True   [eth0   192.168.40.162 fe80::be24:11ff:febf:b67 (Direct Routing)]
+Host firewall:          Disabled
+SRv6:                   Disabled
+CNI Chaining:           none
+CNI Config file:        successfully wrote CNI configuration file to /host/etc/cni/net.d/05-cilium.conflist
+Cilium:                 Ok   1.20.1 (v1.20.1-7d68cfb3)
+NodeMonitor:            Listening for events on 4 CPUs with 64x4096 of shared memory
+Cilium health daemon:   Ok   
+IPAM:                   IPv4: 16/254 allocated from 10.244.2.0/24, 
+Allocated addresses:
+  10.244.2.105 (health)
+  10.244.2.121 (e1-bench/e1-pause-78f77c47b4-r46ck)
+  10.244.2.133 (microservices-google-demo/productcatalogservice-85cbf65d89-dcp2s)
+  10.244.2.167 (router)
+  10.244.2.19 (kube-system/hubble-ui-5786c477b6-5w4qv)
+  10.244.2.21 (microservices-google-demo/adservice-5f7c6d967f-l4fgw)
+  10.244.2.219 (microservices-google-demo/frontend-fdd86794-kwckr)
+  10.244.2.222 (kube-prometheus-stack/prometheus-kube-prometheus-stack-prometheus-0)
+  10.244.2.234 (alloy/alloy-424zx)
+  10.244.2.250 (microservices-google-demo/loadgenerator-755b9568fd-wds79)
+  10.244.2.27 (microservices-google-demo/paymentservice-6fb99579c7-hlxjm)
+  10.244.2.50 (e1-bench/fortio-client-5cdf9794d-hghp5)
+  10.244.2.73 (loki/loki-canary-cdb54)
+  10.244.2.83 (kube-prometheus-stack/kube-prometheus-stack-kube-state-metrics-5945c87df-ggj79)
+  10.244.2.9 (kube-prometheus-stack/alertmanager-kube-prometheus-stack-alertmanager-0)
+  10.244.2.95 (microservices-google-demo/redis-cart-6899b65948-g9m6g)
+IPv4 BIG TCP:           Disabled
+IPv6 BIG TCP:           Disabled
+BandwidthManager:       Disabled
+Routing:                Network: Native   Host: BPF
+Attach Mode:            TCX
+Device Mode:            veth
+Masquerading:           BPF   [eth0]   10.244.0.0/16  [IPv4: Enabled, IPv6: Disabled]
+Clock Source for BPF:   ktime
+Controller Status:      83/83 healthy
+  Name                                                                                            Last success    Last error   Count   Message
+  cilium-health-ep                                                                                40s ago         never        0       no error   
+  ct-map-pressure                                                                                 3s ago          never        0       no error   
+  endpoint-10-regeneration-recovery                                                               never           never        0       no error   
+  endpoint-1262-regeneration-recovery                                                             never           never        0       no error   
+  endpoint-1494-regeneration-recovery                                                             never           never        0       no error   
+  endpoint-1674-regeneration-recovery                                                             never           never        0       no error   
+  endpoint-18-regeneration-recovery                                                               never           never        0       no error   
+  endpoint-1896-regeneration-recovery                                                             never           never        0       no error   
+  endpoint-2034-regeneration-recovery                                                             never           never        0       no error   
+  endpoint-2389-regeneration-recovery                                                             never           never        0       no error   
+  endpoint-269-regeneration-recovery                                                              never           never        0       no error   
+  endpoint-2774-regeneration-recovery                                                             never           never        0       no error   
+  endpoint-313-regeneration-recovery                                                              never           never        0       no error   
+  endpoint-3275-regeneration-recovery                                                             never           never        0       no error   
+  endpoint-697-regeneration-recovery                                                              never           never        0       no error   
+  endpoint-732-regeneration-recovery                                                              never           never        0       no error   
+  endpoint-870-regeneration-recovery                                                              never           never        0       no error   
+  endpoint-94-regeneration-recovery                                                               never           never        0       no error   
+  endpoint-gc                                                                                     4m46s ago       never        0       no error   
+  endpoint-periodic-regeneration                                                                  13s ago         never        0       no error   
+  ipcache-inject-labels                                                                           50s ago         never        0       no error   
+  k8s-heartbeat                                                                                   9s ago          never        0       no error   
+  resolve-identity-10                                                                             4m38s ago       never        0       no error   
+  resolve-identity-1262                                                                           4m14s ago       never        0       no error   
+  resolve-identity-1494                                                                           4m48s ago       never        0       no error   
+  resolve-identity-1674                                                                           4m47s ago       never        0       no error   
+  resolve-identity-18                                                                             4m47s ago       never        0       no error   
+  resolve-identity-1896                                                                           4m46s ago       never        0       no error   
+  resolve-identity-2034                                                                           4m47s ago       never        0       no error   
+  resolve-identity-2389                                                                           4m1s ago        never        0       no error   
+  resolve-identity-269                                                                            4m46s ago       never        0       no error   
+  resolve-identity-2774                                                                           4m47s ago       never        0       no error   
+  resolve-identity-313                                                                            4m20s ago       never        0       no error   
+  resolve-identity-3275                                                                           4m38s ago       never        0       no error   
+  resolve-identity-697                                                                            4m46s ago       never        0       no error   
+  resolve-identity-732                                                                            4m46s ago       never        0       no error   
+  resolve-identity-870                                                                            4m46s ago       never        0       no error   
+  resolve-identity-94                                                                             4m29s ago       never        0       no error   
+  resolve-labels-alloy/alloy-424zx                                                                56h14m46s ago   never        0       no error   
+  resolve-labels-e1-bench/e1-pause-78f77c47b4-r46ck                                               56h14m48s ago   never        0       no error   
+  resolve-labels-e1-bench/fortio-client-5cdf9794d-hghp5                                           56h14m47s ago   never        0       no error   
+  resolve-labels-kube-prometheus-stack/alertmanager-kube-prometheus-stack-alertmanager-0          56h14m46s ago   never        0       no error   
+  resolve-labels-kube-prometheus-stack/kube-prometheus-stack-kube-state-metrics-5945c87df-ggj79   56h14m38s ago   never        0       no error   
+  resolve-labels-kube-prometheus-stack/prometheus-kube-prometheus-stack-prometheus-0              56h14m29s ago   never        0       no error   
+  resolve-labels-kube-system/hubble-ui-5786c477b6-5w4qv                                           56h14m47s ago   never        0       no error   
+  resolve-labels-loki/loki-canary-cdb54                                                           56h14m48s ago   never        0       no error   
+  resolve-labels-microservices-google-demo/adservice-5f7c6d967f-l4fgw                             56h14m20s ago   never        0       no error   
+  resolve-labels-microservices-google-demo/frontend-fdd86794-kwckr                                56h14m15s ago   never        0       no error   
+  resolve-labels-microservices-google-demo/loadgenerator-755b9568fd-wds79                         56h14m10s ago   never        0       no error   
+  resolve-labels-microservices-google-demo/paymentservice-6fb99579c7-hlxjm                        56h14m46s ago   never        0       no error   
+  resolve-labels-microservices-google-demo/productcatalogservice-85cbf65d89-dcp2s                 56h14m38s ago   never        0       no error   
+  resolve-labels-microservices-google-demo/redis-cart-6899b65948-g9m6g                            56h14m46s ago   never        0       no error   
+  sync-policymap-10                                                                               14m37s ago      never        0       no error   
+  sync-policymap-1262                                                                             14m14s ago      never        0       no error   
+  sync-policymap-1494                                                                             14m44s ago      never        0       no error   
+  sync-policymap-1674                                                                             14m38s ago      never        0       no error   
+  sync-policymap-18                                                                               14m38s ago      never        0       no error   
+  sync-policymap-1896                                                                             14m38s ago      never        0       no error   
+  sync-policymap-2034                                                                             14m38s ago      never        0       no error   
+  sync-policymap-2389                                                                             14m9s ago       never        0       no error   
+  sync-policymap-269                                                                              14m38s ago      never        0       no error   
+  sync-policymap-2774                                                                             14m38s ago      never        0       no error   
+  sync-policymap-313                                                                              14m20s ago      never        0       no error   
+  sync-policymap-3275                                                                             14m37s ago      never        0       no error   
+  sync-policymap-697                                                                              14m38s ago      never        0       no error   
+  sync-policymap-732                                                                              14m38s ago      never        0       no error   
+  sync-policymap-870                                                                              14m38s ago      never        0       no error   
+  sync-policymap-94                                                                               14m29s ago      never        0       no error   
+  sync-to-k8s-ciliumendpoint (10)                                                                 4s ago          never        0       no error   
+  sync-to-k8s-ciliumendpoint (1262)                                                               0s ago          never        0       no error   
+  sync-to-k8s-ciliumendpoint (1674)                                                               4s ago          never        0       no error   
+  sync-to-k8s-ciliumendpoint (18)                                                                 4s ago          never        0       no error   
+  sync-to-k8s-ciliumendpoint (1896)                                                               4s ago          never        0       no error   
+  sync-to-k8s-ciliumendpoint (2389)                                                               8s ago          never        0       no error   
+  sync-to-k8s-ciliumendpoint (269)                                                                4s ago          never        0       no error   
+  sync-to-k8s-ciliumendpoint (2774)                                                               0s ago          never        0       no error   
+  sync-to-k8s-ciliumendpoint (313)                                                                8s ago          never        0       no error   
+  sync-to-k8s-ciliumendpoint (3275)                                                               4s ago          never        0       no error   
+  sync-to-k8s-ciliumendpoint (697)                                                                4s ago          never        0       no error   
+  sync-to-k8s-ciliumendpoint (732)                                                                8s ago          never        0       no error   
+  sync-to-k8s-ciliumendpoint (870)                                                                8s ago          never        0       no error   

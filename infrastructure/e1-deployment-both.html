@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>E1 deployment: Calico vs Cilium</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script>
+/* Edit these values; every address on the page updates from here.
+   bridgeLabel: e.g. "bridge vmbr40". *Status: tag shown next to a range; set "" to hide it. */
+const CONFIG = {
+  "cilium": {
+    "cluster": "it-2003-cilium",
+    "context": "it2003@cilium",
+    "bridgeLabel": "bridge",
+    "nodeCidr": "192.168.40.0/24",
+    "nodes": [
+      "it-2003-ubuntu2404-0",
+      "it-2003-ubuntu2404-1",
+      "it-2003-ubuntu2404-2"
+    ],
+    "ips": [
+      "192.168.40.160",
+      "192.168.40.161",
+      "192.168.40.162"
+    ],
+    "podCidr": "10.244.0.0/16",
+    "svcCidr": "10.96.0.0/12",
+    "nodePod": [
+      "/24 from cluster-pool",
+      "/24 from cluster-pool",
+      "/24 from cluster-pool"
+    ],
+    "lbPool": "192.168.40.130 – 192.168.40.150",
+    "podCidrStatus": "",
+    "svcCidrStatus": "",
+    "os": "Ubuntu 24.04.4 LTS",
+    "containerd": "2.2.1",
+    "k8s": "control plane v1.35.7, workers v1.35.8"
+  },
+  "calico": {
+    "cluster": "it2003-calico",
+    "context": "it2003@calico",
+    "bridgeLabel": "bridge",
+    "nodeCidr": "192.168.50.0/24",
+    "nodes": [
+      "it-2003-ubuntu2404-3",
+      "it-2003-ubuntu2404-4",
+      "it-2003-ubuntu2404-5"
+    ],
+    "ips": [
+      "192.168.50.160",
+      "192.168.50.161",
+      "192.168.50.162"
+    ],
+    "podCidr": "10.244.0.0/16",
+    "svcCidr": "110.96.0.0/12",
+    "podCidrStatus": "check IPPool",
+    "svcCidrStatus": "public range",
+    "nodePod": [
+      "/26 blocks (IPAM)",
+      "/26 blocks (IPAM)",
+      "/26 blocks (IPAM)"
+    ],
+    "lbPool": "None (ClusterIP only)",
+    "os": "Ubuntu 24.04.5 LTS",
+    "containerd": "2.3.5",
+    "k8s": "all nodes v1.35.8"
+  },
+  "kernel": "6.8.0-142-generic"
+};
+</script>
+<style>
+:root{--bg:#F4F6F9;--panel:#FFFFFF;--ink:#17212C;--muted:#5A6777;--line:#CBD3DD;--node:#EDF2F7;--node-stroke:#8197AB;
+--net:#1D4ED8;--net-bg:#E4EBFD;--pod:#0E7A6B;--svc:#7B3FD3;--flow:#D2452E;--box:#FFFFFF;}
+@media (prefers-color-scheme: dark){:root{--bg:#0E141B;--panel:#151D26;--ink:#E5EBF1;--muted:#93A1B0;--line:#2C3947;--node:#1B2530;--node-stroke:#4F657A;
+--net:#82A4FF;--net-bg:#192547;--pod:#4FC9B5;--svc:#B68EF3;--flow:#FF7B63;--box:#121A22;}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.55}
+main{max-width:1500px;margin:0 auto;padding:40px 28px 56px}
+header{max-width:72ch;margin-bottom:28px}
+h1{font-size:1.75rem;font-weight:600;letter-spacing:-0.01em;margin:0 0 8px}
+h2{font-size:1.05rem;font-weight:600;margin:0 0 12px}
+header p{margin:0;color:var(--muted)}
+.mono{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+figure{margin:0;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px}
+.single figure{max-width:980px}
+.grid{display:grid;grid-template-columns:1fr;gap:22px}
+@media (min-width:1100px){.grid{grid-template-columns:1fr 1fr}}
+svg{display:block;width:100%;height:auto}
+svg text{fill:var(--ink);font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:13px}
+svg .mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace}
+svg .lbl{font-size:14px;fill:var(--muted)}
+svg .lbl-strong{font-size:14px;font-weight:600}
+svg .node-title{font-size:13.5px;font-weight:600}
+svg .ip{font-size:12.5px;fill:var(--muted)}
+svg .small{font-size:12px;fill:var(--muted)}
+svg .strong{fill:var(--ink);font-weight:500}
+svg .podtxt{font-size:12.5px;fill:var(--pod);font-weight:500}
+svg .cidr{font-size:24px;font-weight:600;fill:var(--net)}
+.host{fill:none;stroke:var(--line);stroke-width:1.2}
+.node{fill:var(--node);stroke:var(--node-stroke);stroke-width:1}
+.box{fill:var(--box);stroke:var(--line);stroke-width:1}
+.lookup{stroke:var(--svc);stroke-width:1.6;stroke-dasharray:5 3}
+.rule{stroke:var(--pod);stroke-width:1;opacity:.45}
+.wire{stroke:var(--node-stroke);stroke-width:1.4}
+.bridge{fill:var(--net-bg);stroke:var(--net);stroke-width:2}
+.flow{stroke:var(--flow);stroke-width:2;stroke-dasharray:5 3;fill:none}
+.legend{width:100%;border-collapse:collapse;margin-top:20px;font-size:.92rem}
+.legend caption{text-align:left;font-weight:600;padding-bottom:8px}
+.legend th,.legend td{text-align:left;vertical-align:top;padding:9px 12px;border-top:1px solid var(--line)}
+.legend thead th{color:var(--muted);font-weight:500;font-size:.85rem;border-top:none}
+.legend tbody th{font-weight:500;white-space:nowrap}
+.legend td.mono{white-space:nowrap}
+.sw{display:inline-block;width:14px;height:14px;border-radius:3px;margin-right:9px;vertical-align:-2px}
+.sw-net{background:var(--net-bg);border:2px solid var(--net)}
+.sw-pod{background:var(--node);border:2px solid var(--pod)}
+.sw-svc{background:color-mix(in srgb,var(--svc) 22%,transparent);border:1.6px solid var(--svc)}
+.sw-lookup{background:var(--box);border:1.6px dashed var(--svc)}
+.sw-flow{height:0;width:18px;border-top:2px dashed var(--flow);border-radius:0;vertical-align:4px}
+.note{color:var(--muted);font-size:.88rem;max-width:90ch;margin:16px 0 0}
+.table-wrap{overflow-x:auto}
+footer{margin-top:22px;color:var(--muted);font-size:.85rem}
+@media print{:root{--bg:#fff;--panel:#fff}body{background:#fff}main{padding:0}figure{border-color:#ccc}}
+.cp{opacity:.85}
+.empty{stroke-dasharray:4 3;fill:none}
+svg .svc-txt{fill:var(--svc)}
+svg .lbtxt{font-size:13px;fill:var(--net);font-weight:500}
+.sw-lb{background:var(--net-bg);border:1.6px dashed var(--net)}
+.chip{display:inline-block;font-size:.75rem;line-height:1;padding:3px 7px;border-radius:999px;border:1px solid var(--flow);color:var(--flow);vertical-align:1px;white-space:nowrap}
+.legend td{white-space:normal}
+footer{display:none}
+
+.chip{border-color:var(--muted);color:var(--muted)}
+.chip.warn{border-color:var(--flow);color:var(--flow)}
+</style>
+</head><body><main>
+<header><h1>E1 deployment: Calico vs Cilium</h1><p>Two independent clusters, each with three Proxmox VMs on its own private subnet, both running at once. Same address layout and pinning on both; E1 benchmarks run one cluster at a time.</p></header>
+<div class="grid"><figure><svg viewBox="0 0 680 444" role="img" aria-labelledby="a-t a-d" xmlns="http://www.w3.org/2000/svg">
+<title id="a-t">Setup A: Calico + kube-proxy (iptables), cluster it2003-calico</title>
+<desc id="a-d">Three Proxmox VMs on private subnet 192.168.50.0/24. The client worker sends test traffic through a ClusterIP Service to the server worker. The control plane runs no test pods.</desc>
+<defs><marker id="a-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect x="10" y="10" width="660" height="424" rx="14" class="host"/>
+<text x="30" y="34" class="lbl" text-anchor="start" dominant-baseline="central">Cluster <tspan class="mono strong" data-k="calico.cluster">it2003-calico</tspan></text>
+<text x="30" y="53" class="small" text-anchor="start" dominant-baseline="central">kubectl context <tspan class="mono" data-k="calico.context">it2003@calico</tspan></text>
+<text x="650" y="34" class="lbl-strong" text-anchor="end" dominant-baseline="central">Setup A: Calico + kube-proxy (iptables)</text>
+<rect x="30" y="70" width="190" height="222" rx="10" class="node cp"/>
+<text x="125" y="92" class="node-title" text-anchor="middle" dominant-baseline="central" data-k="calico.nodes.0">it-2003-ubuntu2404-3</text>
+<text x="125" y="111" class="mono ip" text-anchor="middle" dominant-baseline="central" data-k="calico.ips.0">192.168.50.160</text>
+<text x="125" y="128" class="small" text-anchor="middle" dominant-baseline="central">control plane</text>
+<rect x="40" y="142" width="170" height="30" rx="5" class="box"/>
+<text x="125" y="157" class="small strong" text-anchor="middle" dominant-baseline="central">calico-node + kube-proxy</text>
+<rect x="40" y="180" width="170" height="68" rx="5" class="box empty"/>
+<text x="125" y="214" class="small" text-anchor="middle" dominant-baseline="central">No test pods</text>
+<line x1="50" y1="258" x2="200" y2="258" class="rule"/>
+<text x="125" y="274" class="mono podtxt" text-anchor="middle" dominant-baseline="central" data-k="calico.nodePod.0">/26 blocks (IPAM)</text>
+<line x1="125" y1="292" x2="125" y2="330" class="wire"/>
+<rect x="245" y="70" width="190" height="222" rx="10" class="node"/>
+<text x="340" y="92" class="node-title" text-anchor="middle" dominant-baseline="central" data-k="calico.nodes.1">it-2003-ubuntu2404-4</text>
+<text x="340" y="111" class="mono ip" text-anchor="middle" dominant-baseline="central" data-k="calico.ips.1">192.168.50.161</text>
+<text x="340" y="128" class="small" text-anchor="middle" dominant-baseline="central">worker, bench-role=server</text>
+<rect x="255" y="142" width="170" height="30" rx="5" class="box"/>
+<text x="340" y="157" class="small strong" text-anchor="middle" dominant-baseline="central">calico-node + kube-proxy</text>
+<rect x="255" y="180" width="170" height="30" rx="5" class="box"/>
+<text x="340" y="195" class="small strong" text-anchor="middle" dominant-baseline="central">fortio server</text>
+<rect x="255" y="218" width="170" height="30" rx="5" class="box"/>
+<text x="340" y="233" class="small" text-anchor="middle" dominant-baseline="central">pause ×3 (backends)</text>
+<line x1="265" y1="258" x2="415" y2="258" class="rule"/>
+<text x="340" y="274" class="mono podtxt" text-anchor="middle" dominant-baseline="central" data-k="calico.nodePod.1">/26 blocks (IPAM)</text>
+<line x1="340" y1="292" x2="340" y2="330" class="wire"/>
+<rect x="460" y="70" width="190" height="222" rx="10" class="node"/>
+<text x="555" y="92" class="node-title" text-anchor="middle" dominant-baseline="central" data-k="calico.nodes.2">it-2003-ubuntu2404-5</text>
+<text x="555" y="111" class="mono ip" text-anchor="middle" dominant-baseline="central" data-k="calico.ips.2">192.168.50.162</text>
+<text x="555" y="128" class="small" text-anchor="middle" dominant-baseline="central">worker, bench-role=client</text>
+<rect x="470" y="142" width="170" height="30" rx="5" class="box lookup"/>
+<text x="555" y="157" class="small strong" text-anchor="middle" dominant-baseline="central">calico-node + kube-proxy</text>
+<rect x="470" y="180" width="170" height="30" rx="5" class="box"/>
+<text x="555" y="195" class="small strong" text-anchor="middle" dominant-baseline="central">fortio client</text>
+<text x="555" y="233" class="small svc-txt" text-anchor="middle" dominant-baseline="central">rules counted here</text>
+<line x1="480" y1="258" x2="630" y2="258" class="rule"/>
+<text x="555" y="274" class="mono podtxt" text-anchor="middle" dominant-baseline="central" data-k="calico.nodePod.2">/26 blocks (IPAM)</text>
+<line x1="555" y1="292" x2="555" y2="330" class="wire"/>
+<line x1="468" y1="195" x2="429" y2="195" class="flow" marker-end="url(#a-arr)"/>
+<rect x="30" y="330" width="620" height="90" rx="10" class="bridge"/>
+<text x="50" y="354" class="lbl-strong" text-anchor="start" dominant-baseline="central">Proxmox private subnet (<tspan data-k="calico.bridgeLabel">bridge</tspan>)</text>
+<text x="630" y="354" class="small" text-anchor="end" dominant-baseline="central">LoadBalancer IPs</text>
+<text x="50" y="390" class="mono cidr" text-anchor="start" dominant-baseline="central" data-k="calico.nodeCidr">192.168.50.0/24</text>
+<text x="630" y="390" class="small" text-anchor="end" dominant-baseline="central" data-k="calico.lbPool">None (ClusterIP only)</text>
+</svg></figure><figure><svg viewBox="0 0 680 444" role="img" aria-labelledby="b-t b-d" xmlns="http://www.w3.org/2000/svg">
+<title id="b-t">Setup B: Cilium (eBPF, no kube-proxy), cluster it-2003-cilium</title>
+<desc id="b-d">Three Proxmox VMs on private subnet 192.168.40.0/24. The client worker sends test traffic through a ClusterIP Service to the server worker. The control plane runs no test pods.</desc>
+<defs><marker id="b-arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect x="10" y="10" width="660" height="424" rx="14" class="host"/>
+<text x="30" y="34" class="lbl" text-anchor="start" dominant-baseline="central">Cluster <tspan class="mono strong" data-k="cilium.cluster">it-2003-cilium</tspan></text>
+<text x="30" y="53" class="small" text-anchor="start" dominant-baseline="central">kubectl context <tspan class="mono" data-k="cilium.context">it2003@cilium</tspan></text>
+<text x="650" y="34" class="lbl-strong" text-anchor="end" dominant-baseline="central">Setup B: Cilium (eBPF, no kube-proxy)</text>
+<rect x="30" y="70" width="190" height="222" rx="10" class="node cp"/>
+<text x="125" y="92" class="node-title" text-anchor="middle" dominant-baseline="central" data-k="cilium.nodes.0">it-2003-ubuntu2404-0</text>
+<text x="125" y="111" class="mono ip" text-anchor="middle" dominant-baseline="central" data-k="cilium.ips.0">192.168.40.160</text>
+<text x="125" y="128" class="small" text-anchor="middle" dominant-baseline="central">control plane</text>
+<rect x="40" y="142" width="170" height="30" rx="5" class="box"/>
+<text x="125" y="157" class="small strong" text-anchor="middle" dominant-baseline="central">cilium-agent (eBPF LB)</text>
+<rect x="40" y="180" width="170" height="68" rx="5" class="box empty"/>
+<text x="125" y="214" class="small" text-anchor="middle" dominant-baseline="central">No test pods</text>
+<line x1="50" y1="258" x2="200" y2="258" class="rule"/>
+<text x="125" y="274" class="mono podtxt" text-anchor="middle" dominant-baseline="central" data-k="cilium.nodePod.0">/24 from cluster-pool</text>
+<line x1="125" y1="292" x2="125" y2="330" class="wire"/>
+<rect x="245" y="70" width="190" height="222" rx="10" class="node"/>
+<text x="340" y="92" class="node-title" text-anchor="middle" dominant-baseline="central" data-k="cilium.nodes.1">it-2003-ubuntu2404-1</text>
+<text x="340" y="111" class="mono ip" text-anchor="middle" dominant-baseline="central" data-k="cilium.ips.1">192.168.40.161</text>
+<text x="340" y="128" class="small" text-anchor="middle" dominant-baseline="central">worker, bench-role=server</text>
+<rect x="255" y="142" width="170" height="30" rx="5" class="box"/>
+<text x="340" y="157" class="small strong" text-anchor="middle" dominant-baseline="central">cilium-agent (eBPF LB)</text>
+<rect x="255" y="180" width="170" height="30" rx="5" class="box"/>
+<text x="340" y="195" class="small strong" text-anchor="middle" dominant-baseline="central">fortio server</text>
+<rect x="255" y="218" width="170" height="30" rx="5" class="box"/>
+<text x="340" y="233" class="small" text-anchor="middle" dominant-baseline="central">pause ×3 (backends)</text>
+<line x1="265" y1="258" x2="415" y2="258" class="rule"/>
+<text x="340" y="274" class="mono podtxt" text-anchor="middle" dominant-baseline="central" data-k="cilium.nodePod.1">/24 from cluster-pool</text>
+<line x1="340" y1="292" x2="340" y2="330" class="wire"/>
+<rect x="460" y="70" width="190" height="222" rx="10" class="node"/>
+<text x="555" y="92" class="node-title" text-anchor="middle" dominant-baseline="central" data-k="cilium.nodes.2">it-2003-ubuntu2404-2</text>
+<text x="555" y="111" class="mono ip" text-anchor="middle" dominant-baseline="central" data-k="cilium.ips.2">192.168.40.162</text>
+<text x="555" y="128" class="small" text-anchor="middle" dominant-baseline="central">worker, bench-role=client</text>
+<rect x="470" y="142" width="170" height="30" rx="5" class="box lookup"/>
+<text x="555" y="157" class="small strong" text-anchor="middle" dominant-baseline="central">cilium-agent (eBPF LB)</text>
+<rect x="470" y="180" width="170" height="30" rx="5" class="box"/>
+<text x="555" y="195" class="small strong" text-anchor="middle" dominant-baseline="central">fortio client</text>
+<text x="555" y="233" class="small svc-txt" text-anchor="middle" dominant-baseline="central">entries counted here</text>
+<line x1="480" y1="258" x2="630" y2="258" class="rule"/>
+<text x="555" y="274" class="mono podtxt" text-anchor="middle" dominant-baseline="central" data-k="cilium.nodePod.2">/24 from cluster-pool</text>
+<line x1="555" y1="292" x2="555" y2="330" class="wire"/>
+<line x1="468" y1="195" x2="429" y2="195" class="flow" marker-end="url(#b-arr)"/>
+<rect x="30" y="330" width="620" height="90" rx="10" class="bridge"/>
+<text x="50" y="354" class="lbl-strong" text-anchor="start" dominant-baseline="central">Proxmox private subnet (<tspan data-k="cilium.bridgeLabel">bridge</tspan>)</text>
+<text x="630" y="354" class="small" text-anchor="end" dominant-baseline="central">LoadBalancer IPs</text>
+<text x="50" y="390" class="mono cidr" text-anchor="start" dominant-baseline="central" data-k="cilium.nodeCidr">192.168.40.0/24</text>
+<text x="630" y="390" class="mono lbtxt" text-anchor="end" dominant-baseline="central" data-k="cilium.lbPool">192.168.40.130 – 192.168.40.150</text>
+</svg></figure></div>
+<figure style="margin-top:22px"><div class="table-wrap"><table class="legend"><caption>Legend and comparison</caption>
+<thead><tr><th scope="col">Item</th><th scope="col">Setup A: Calico + kube-proxy</th><th scope="col">Setup B: Cilium</th></tr></thead>
+<tbody><tr><th scope="row">Cluster / context</th><td><span class="mono" data-k="calico.cluster">it2003-calico</span> / <span class="mono" data-k="calico.context">it2003@calico</span></td><td><span class="mono" data-k="cilium.cluster">it-2003-cilium</span> / <span class="mono" data-k="cilium.context">it2003@cilium</span></td></tr><tr><th scope="row"><span class="sw sw-net" aria-hidden="true"></span>Node network</th><td><span class="mono" data-k="calico.nodeCidr">192.168.50.0/24</span></td><td><span class="mono" data-k="cilium.nodeCidr">192.168.40.0/24</span></td></tr><tr><th scope="row"><span class="sw sw-pod" aria-hidden="true"></span>Pod CIDR</th><td><span class="mono" data-k="calico.podCidr">10.244.0.0/16</span> <span class="chip" data-k="calico.podCidrStatus">check IPPool</span></td><td><span class="mono" data-k="cilium.podCidr">10.244.0.0/16</span></td></tr><tr><th scope="row">Pod allocation per node</th><td>/26 blocks, assigned on demand</td><td>/24 per node, from cluster-pool</td></tr><tr><th scope="row"><span class="sw sw-svc" aria-hidden="true"></span>Service CIDR</th><td><span class="mono" data-k="calico.svcCidr">110.96.0.0/12</span> <span class="chip warn" data-k="calico.svcCidrStatus">public range</span></td><td><span class="mono" data-k="cilium.svcCidr">10.96.0.0/12</span></td></tr><tr><th scope="row"><span class="sw sw-lb" aria-hidden="true"></span>LoadBalancer IPs</th><td><span class="mono" data-k="calico.lbPool">None (ClusterIP only)</span></td><td><span class="mono" data-k="cilium.lbPool">192.168.40.130 – 192.168.40.150</span> (L2, workers)</td></tr><tr><th scope="row">Service routing</th><td>kube-proxy, iptables mode</td><td>Cilium kube-proxy replacement</td></tr><tr><th scope="row"><span class="sw sw-lookup" aria-hidden="true"></span>Service lookup</th><td>iptables NAT chains, linear walk</td><td>eBPF hash map, constant time</td></tr><tr><th scope="row">Count on client node</th><td><span class="mono">iptables-save -t nat | wc -l</span></td><td><span class="mono">cilium-dbg bpf lb list | wc -l</span></td></tr><tr><th scope="row"><span class="sw sw-flow" aria-hidden="true"></span>Test flow</th><td><span class="mono">fortio -keepalive=false</span></td><td><span class="mono">fortio -keepalive=false</span></td></tr><tr><th scope="row">Kernel</th><td><span class="mono" data-k="kernel">6.8.0-142-generic</span></td><td><span class="mono" data-k="kernel">6.8.0-142-generic</span></td></tr><tr><th scope="row">OS / containerd</th><td><span data-k="calico.os">Ubuntu 24.04.5 LTS</span> / <span class="mono" data-k="calico.containerd">2.3.5</span></td><td><span data-k="cilium.os">Ubuntu 24.04.4 LTS</span> / <span class="mono" data-k="cilium.containerd">2.2.1</span></td></tr><tr><th scope="row">Kubernetes</th><td><span data-k="calico.k8s">all nodes v1.35.8</span></td><td><span data-k="cilium.k8s">control plane v1.35.7, workers v1.35.8</span></td></tr></tbody></table></div><p class="note">Calico cluster check: kubeadm reports <span class="mono">podSubnet 10.244.0.0/16</span> and <span class="mono">serviceSubnet 110.96.0.0/12</span>. The Service range is a public block (110.96.0.0 – 110.111.255.255), not the private 10.96.0.0/12 used on the Cilium cluster, so pods there cannot reach real hosts in that block. Rule counts in E1 depend on the number of Services, not on the range, so the benchmark itself is unaffected; record it under known differences or rebuild the cluster with 10.96.0.0/12. The Calico IPPool has not been checked yet: <span class="mono">kubectl --context it2003@calico get ippools.crd.projectcalico.org -o wide</span>.</p></figure>
+</main>
+<script>
+const get = p => p.split('.').reduce((o, k) => (o == null ? o : o[k]), CONFIG);
+document.querySelectorAll('[data-k]').forEach(el => { const v = get(el.dataset.k); if (v !== undefined) el.textContent = v; });
+document.querySelectorAll('.chip[data-k]').forEach(el => { if (!el.textContent.trim()) el.style.display = 'none'; });
+</script>
+</body></html>

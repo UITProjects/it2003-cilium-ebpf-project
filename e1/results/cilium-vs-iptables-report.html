@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>iptables vs Cilium eBPF: what 10,000 Services cost</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F2F4F7; --surface:#FFFFFF; --ink:#18202B; --muted:#5B6676; --ctx:#A9B2BE; --grid:#E0E4EA;
+  --ipt:#C8264F; --cil:#0B7F8A; --ipt-soft:rgba(200,38,79,.10); --cil-soft:rgba(11,127,138,.10);
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --ui:"Barlow","Helvetica Neue",Arial,sans-serif;
+  --body:"Source Serif 4",Georgia,"Times New Roman",serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#141920; --surface:#1B222B; --ink:#E6EAF0; --muted:#9AA5B4; --ctx:#5A6573; --grid:#29323D;
+    --ipt:#F2607F; --cil:#3EC3CB; --ipt-soft:rgba(242,96,127,.14); --cil-soft:rgba(62,195,203,.14);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#141920; --surface:#1B222B; --ink:#E6EAF0; --muted:#9AA5B4; --ctx:#5A6573; --grid:#29323D;
+  --ipt:#F2607F; --cil:#3EC3CB; --ipt-soft:rgba(242,96,127,.14); --cil-soft:rgba(62,195,203,.14);
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:1.075rem;line-height:1.62;-webkit-font-smoothing:antialiased}
+main{padding:0 1.25rem 4rem}
+.col{max-width:44rem;margin:0 auto}
+.wide{max-width:62rem;margin:0 auto}
+h1,h2,h3{font-family:var(--display);font-weight:700;line-height:1.02;letter-spacing:-.005em;margin:0}
+h1{font-size:clamp(2.4rem,6.4vw,4.6rem);max-width:15ch;padding-top:3.5rem}
+h1 .ipt{color:var(--ipt)} h1 .cil{color:var(--cil)}
+.lede{font-size:1.22rem;color:var(--muted);margin:1.1rem 0 0;max-width:38rem}
+.meta{font-family:var(--ui);font-size:.9rem;color:var(--muted);margin:1.4rem 0 2rem}
+h2{font-size:clamp(1.8rem,3.6vw,2.5rem);margin:4.2rem 0 .9rem;max-width:22ch}
+h3{font-size:1.35rem;margin:2rem 0 .4rem;font-family:var(--display);font-weight:600}
+p{margin:0 0 1rem}
+strong{font-weight:600}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.88em;background:var(--surface);padding:.08em .35em;border-radius:3px}
+.k-ipt{color:var(--ipt);font-weight:600} .k-cil{color:var(--cil);font-weight:600}
+
+figure{margin:1.6rem 0 1rem;background:var(--surface);border-radius:14px;padding:1.2rem 1.2rem .8rem}
+.fighead{display:flex;gap:1rem;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;margin-bottom:.4rem}
+.figtitle{font-family:var(--display);font-weight:600;font-size:1.35rem;line-height:1.15;max-width:36rem}
+.toggle{font-family:var(--ui);font-weight:600;font-size:.85rem;color:var(--ink);background:transparent;border:1.5px solid var(--grid);border-radius:999px;padding:.35rem .85rem;cursor:pointer;white-space:nowrap}
+.toggle:hover{border-color:var(--muted)}
+.toggle:focus-visible,a:focus-visible{outline:3px solid var(--cil);outline-offset:2px}
+.chart{width:100%}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+figcaption{font-family:var(--ui);font-size:.88rem;color:var(--muted);margin-top:.3rem;line-height:1.45}
+
+/* storytelling: context is dimmed and blurred until the reader asks for it */
+.ctx{opacity:.32;filter:blur(1.1px);transition:opacity .35s ease,filter .35s ease}
+figure.reveal .ctx{opacity:1;filter:none}
+figure.reveal .focus{opacity:.9}
+@media (prefers-reduced-motion:reduce){.ctx{transition:none}}
+
+svg text{font-family:var(--ui)}
+.tick{font-size:12px;fill:var(--muted)}
+.axlab{font-size:12.5px;fill:var(--muted);font-weight:600}
+.gridl{stroke:var(--grid);stroke-width:1}
+.base{stroke:var(--muted);stroke-width:1}
+.halo{paint-order:stroke;stroke:var(--surface);stroke-width:5px;stroke-linejoin:round}
+.lbl{font-size:13px;font-weight:600}
+.lbl-big{font-family:var(--display);font-size:22px;font-weight:700}
+.note{font-size:12.5px;fill:var(--muted);font-weight:500}
+
+/* concept diagram */
+.concept{display:grid;gap:1.2rem;margin:1.6rem 0}
+.lane{background:var(--surface);border-radius:14px;padding:1.1rem 1.2rem}
+.lane h3{margin:0 0 .6rem}
+.cells{display:grid;grid-template-columns:repeat(auto-fill,minmax(14px,1fr));gap:4px;margin:.4rem 0 .8rem}
+.cell{aspect-ratio:1;border-radius:3px;background:var(--grid)}
+.lane.ipt .cell.walk{background:var(--ipt);opacity:.55}
+.lane.ipt .cell.hit{background:var(--ipt);box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--ipt)}
+.lane.cil .cell.hit{background:var(--cil);box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--cil)}
+.lane.cil .cells{filter:none}
+.lane.cil .cell:not(.hit){opacity:.55}
+.lane p{font-size:1rem;margin:0}
+.lane .cost{font-family:var(--ui);font-weight:600;font-size:.95rem;margin-top:.5rem}
+.lane.ipt .cost{color:var(--ipt)} .lane.cil .cost{color:var(--cil)}
+
+/* table */
+.tablewrap{overflow-x:auto;margin:1.2rem 0;background:var(--surface);border-radius:14px}
+table{border-collapse:collapse;width:100%;font-family:var(--ui);font-size:.93rem;min-width:36rem}
+th,td{padding:.62rem .9rem;text-align:right;border-bottom:1px solid var(--grid);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+thead th{font-weight:600;color:var(--muted);font-size:.84rem}
+tbody tr:last-child td{border-bottom:0}
+td.gap{font-weight:700;color:var(--ipt)}
+tbody tr:last-child{background:var(--ipt-soft)}
+
+.finding{margin:0 0 1.4rem}
+.finding b{display:block;font-family:var(--display);font-weight:600;font-size:1.3rem;line-height:1.2;margin-bottom:.25rem}
+.verdict{border-left:4px solid var(--cil);padding:.2rem 0 .2rem 1.1rem;margin:2rem 0;font-size:1.18rem}
+footer{font-family:var(--ui);font-size:.85rem;color:var(--muted);margin-top:3rem}
+a{color:var(--cil)}
+@media (max-width:560px){
+  body{font-size:1.02rem}
+  figure{padding:1rem .75rem .6rem;border-radius:10px}
+  .figtitle{font-size:1.18rem}
+}
+</style>
+</head>
+<body>
+<main>
+<header class="col">
+  <h1>At 10,000 Services, <span class="ipt">iptables</span> doubles request latency. <span class="cil">Cilium</span> doesn't move.</h1>
+  <p class="lede">Comparing Service routing in Calico (iptables) and Cilium (eBPF) as a cluster grows from 100 to 10,000 Services.</p>
+  <p class="meta">36 benchmark runs on 28–29 September 2026. Each run: 200 requests per second over 4 connections for 30 seconds.</p>
+</header>
+
+<section class="wide">
+  <figure id="f1">
+    <div class="fighead">
+      <div class="figtitle">Median latency climbs in a straight line for iptables and stays flat for Cilium</div>
+      <button class="toggle" aria-pressed="false">Show all data</button>
+    </div>
+    <div class="chart" id="c1"></div>
+    <figcaption>Lines are the mean of 3 runs, from 2,080 to 10,000 Services in equal steps. At the 100-Service baseline both measured about 2.3 ms (see the table below). The faded layer holds each individual run and the p90 lines.</figcaption>
+  </figure>
+</section>
+
+<section class="col">
+  <h2>Why they behave differently</h2>
+  <p>When a pod calls a Service, the kernel has to turn the Service's virtual IP into a real pod IP. Both setups store one entry per Service port (plus entries per backend), so both tables grow as you add Services. The difference is how the kernel finds the right entry.</p>
+</section>
+
+<section class="col concept" aria-label="How each datapath finds a Service">
+  <div class="lane ipt">
+    <h3>iptables: walk the list</h3>
+    <div class="cells" id="cells-ipt" aria-hidden="true"></div>
+    <p>A new connection is checked against the <code>KUBE-SERVICES</code> chain rule by rule, top to bottom, until one matches. Add Services and the list gets longer.</p>
+    <p class="cost">Cost grows with the number of Services: O(n)</p>
+  </div>
+  <div class="lane cil">
+    <h3>Cilium eBPF: jump straight to it</h3>
+    <div class="cells" id="cells-cil" aria-hidden="true"></div>
+    <p>An eBPF program hashes the destination IP and port and does a single lookup in a BPF map. The map can hold ten or ten thousand Services; the lookup is the same.</p>
+    <p class="cost">Cost stays constant: O(1)</p>
+  </div>
+</section>
+
+
+<section class="col">
+  <h2>The slow tail follows the median</h2>
+  <p>The 99th percentile is what the slowest 1 in 100 requests experiences. It's noisier than the median, so each run matters more here.</p>
+</section>
+<section class="wide">
+  <figure id="f3">
+    <div class="fighead">
+      <div class="figtitle">iptables p99 climbs from 4.30 ms to 7.40 ms. Cilium's tail wobbles but doesn't trend</div>
+      <button class="toggle" aria-pressed="false">Show all data</button>
+    </div>
+    <div class="chart" id="c3"></div>
+    <figcaption>The faded band is the lowest-to-highest p99 across Cilium's 3 runs at each size. p99.9 is left out: 6,000 requests per run gives only 6 samples above that line, which is too few to trust.</figcaption>
+  </figure>
+</section>
+
+<section class="col">
+  <p>One honest detail: at smaller sizes iptables actually has the tighter tail (4.30 ms against Cilium's 5.27 ms at 2,080 Services, and 3.82 against 5.35 ms at 100). The lines cross around 6,000 Services. The eBPF advantage is about scale, not about every request being faster at any size.</p>
+
+  <h2>A surprise: where the rule sits matters less than how many there are</h2>
+  <p>If the cost were only the walk to the matching rule, a Service found near the top of the chain would be fast no matter how long the chain is. The benchmark recorded where the target Service landed in <code>KUBE-SERVICES</code>, so that can be checked.</p>
+</section>
+<section class="wide">
+  <figure id="f4">
+    <div class="fighead">
+      <div class="figtitle">With 6,040 Services the target matched at rule 434, and it was still slower than a match at rule 2,776 with 4,060 Services</div>
+      <button class="toggle" aria-pressed="false">Show all data</button>
+    </div>
+    <div class="chart" id="c4"></div>
+    <figcaption>iptables only, 2,080 to 10,000 Services. Correlation of median latency with the target's position is 0.52; with the total number of rules it is 0.99. Note that this axis starts at 2 ms to keep the points readable.</figcaption>
+  </figure>
+</section>
+
+<section class="col">
+  <p>So something beyond the walk to the match scales with the total ruleset. Likely candidates are the iptables backend in use (legacy or nft; <code>iptables -V</code> on a node tells you), rules in other chains that every new connection passes, and CPU cache pressure from a large ruleset. This benchmark can't separate them, but for the main question it doesn't need to: whatever the mechanism, the cost grows with the number of Services on iptables and not on Cilium.</p>
+
+  <h2>Findings</h2>
+
+  <div class="finding"><b>Cilium's latency is independent of Service count.</b>
+  Median latency was 2.33 ms at 100 Services and 2.25 ms at 10,000. The fitted slope is −0.007 ms per 1,000 Services, which is run-to-run noise.</div>
+
+  <div class="finding"><b>iptables adds about 0.23 ms per request for every 1,000 Services.</b>
+  Median latency rose from 2.36 ms to 4.74 ms, a 101% increase, and it fits a straight line almost perfectly (r = 0.995). That linear shape is the O(n) rule walk showing up in the data.</div>
+
+  <div class="finding"><b>The gap opens immediately and keeps widening.</b>
+  The two are tied at 100 Services. By 2,080 Services iptables is 23% slower; by 10,000 it is 2.1× slower, 2.49 ms per request.</div>
+
+  <div class="finding"><b>Lookup method, not table size, explains the difference.</b>
+  Cilium holding 50,146 entries (2.25 ms) beats iptables holding 44,710 rules (3.32 ms). Both tables grow linearly; only the linear search pays for it. The chart is in the <a href="#appendix">appendix</a>.</div>
+
+  <div class="finding"><b>Tail latency confirms it, with a caveat at small scale.</b>
+  iptables p99 grew 94%, from 3.82 to 7.40 ms. Cilium's p99 ended lower than it started (5.35 to 4.80 ms) but varies more between runs, up to 4 ms apart at 4,060 Services.</div>
+
+  <div class="finding"><b>Both were equally reliable at this load.</b>
+  All 216,000 requests succeeded and both setups held the 200 requests per second target in every run, so the difference is purely latency.</div>
+</section>
+
+<section class="wide">
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Services</th><th>iptables rules</th><th>Cilium entries</th><th>iptables p50</th><th>Cilium p50</th><th>Difference</th><th>iptables / Cilium</th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</section>
+
+<section class="col">
+  <p class="verdict">Within this setup, the data supports the claim. Cilium's eBPF datapath keeps Service routing cost constant as the cluster grows, while iptables cost grows linearly with the number of Services and doubled median latency by 10,000.</p>
+
+  <h3>Limits of this benchmark</h3>
+  <p>Three runs per point is enough to see a trend this strong, not to measure small effects. Only one load level (200 requests per second) was tested, so this says nothing yet about maximum throughput or node CPU usage. The latency includes the application's own response time of roughly 2.2 ms, which is why the absolute difference (2.49 ms) tells you more than the ratio. Rule update time, how long it takes to apply a change when a Service is added, wasn't measured, and that's another place where iptables is known to struggle at scale.</p>
+
+</section>
+
+<section class="col">
+  <h2 id="appendix">Appendix: table size isn't the problem, lookup is</h2>
+  <p>If more entries alone made things slow, Cilium would suffer too: it programs about <strong>5 entries per Service</strong> against iptables' <strong>11 rules per Service</strong>, and at 10,000 Services it holds over 50,000 of them. The chart below plots latency against the size of each datapath's table, measured as the number of entries in the datapath.</p>
+  <p>The Cilium line stops at about 50,000 entries because that's how big its table gets at 10,000 Services, the largest size tested. No data is missing: both setups have a point for every Service count from 2,080 to 10,000.</p>
+</section>
+<section class="wide">
+  <figure id="f2">
+    <div class="fighead">
+      <div class="figtitle">At a similar table size, Cilium answers in 2.25 ms and iptables in 3.32 ms</div>
+      <button class="toggle" aria-pressed="false">Show all data</button>
+    </div>
+    <div class="chart" id="c2"></div>
+    <figcaption>Entry counts come from the <code>rules</code> column of the benchmark: iptables rules for Calico, datapath entries for Cilium. The shaded band compares the two setups where their tables are about the same size.</figcaption>
+  </figure>
+</section>
+
+<section class="col">
+  <footer>Data: 36 runs, 6 Service counts from 100 to 10,000, 3 runs each per datapath. Means and fits computed from the raw run data embedded in this page.</footer>
+</section>
+</main>
+
+<script>
+(function(){
+// setup, services, run, rules, target position, p50, p90, p99
+const RAW = [
+["cilium",100,1,646,null,2.3268,3.1905,5.3846],["cilium",100,2,646,null,2.3440,3.1801,5.3810],["cilium",100,3,646,null,2.3161,3.1420,5.2692],
+["cilium",2080,1,10546,null,2.2631,3.0030,4.7778],["cilium",2080,2,10546,null,2.2493,3.1118,5.6389],["cilium",2080,3,10546,null,2.2600,3.0708,5.3793],
+["cilium",4060,1,20446,null,2.2209,3.0144,4.9167],["cilium",4060,2,20446,null,2.2697,3.1031,8.4444],["cilium",4060,3,20446,null,2.2461,2.9881,4.4915],
+["cilium",6040,1,30346,null,2.2457,3.1233,5.1250],["cilium",6040,2,30346,null,2.2383,3.0548,4.8902],["cilium",6040,3,30346,null,2.3002,3.2977,7.2500],
+["cilium",8020,1,40246,null,2.2151,2.9834,5.2400],["cilium",8020,2,40246,null,2.2752,3.1224,4.9828],["cilium",8020,3,40246,null,2.2248,2.9873,4.8710],
+["cilium",10000,1,50146,null,2.2567,3.0652,4.5862],["cilium",10000,2,50146,null,2.2472,3.0343,5.2593],["cilium",10000,3,50146,null,2.2367,3.0371,4.5588],
+["iptables",100,1,1150,49,2.3203,2.9394,3.9111],["iptables",100,2,1150,49,2.3648,2.9726,3.9184],["iptables",100,3,1150,49,2.3808,2.9656,3.6204],
+["iptables",2080,1,22930,1308,2.7358,3.3942,4.3875],["iptables",2080,2,22930,1308,2.7908,3.4547,4.2971],["iptables",2080,3,22930,1308,2.7791,3.4273,4.2212],
+["iptables",4060,1,44710,2776,3.3447,4.1306,5.8788],["iptables",4060,2,44710,2776,3.2926,3.9899,4.8452],["iptables",4060,3,44710,2776,3.3267,4.0430,5.3889],
+["iptables",6040,1,66490,434,3.6501,4.4661,5.7818],["iptables",6040,2,66490,434,3.5900,4.4094,5.8081],["iptables",6040,3,66490,434,3.6385,4.4462,5.5952],
+["iptables",8020,1,88270,822,4.0792,4.9280,5.9953],["iptables",8020,2,88270,822,4.0341,4.9534,6.5179],["iptables",8020,3,88270,822,4.1126,5.0499,6.9000],
+["iptables",10000,1,110050,4462,4.6743,5.8184,7.5455],["iptables",10000,2,110050,4462,4.7935,5.8730,7.0909],["iptables",10000,3,110050,4462,4.7577,5.9054,7.5581]
+].map(r=>({s:r[0],n:r[1],run:r[2],rules:r[3],pos:r[4],p50:r[5],p90:r[6],p99:r[7]}));
+
+const NS=[100,2080,4060,6040,8020,10000];
+const mean=a=>a.reduce((x,y)=>x+y,0)/a.length;
+function agg(s){return NS.map(n=>{const rs=RAW.filter(r=>r.s===s&&r.n===n);return{n,rules:rs[0].rules,pos:rs[0].pos,
+  p50:mean(rs.map(r=>r.p50)),p90:mean(rs.map(r=>r.p90)),p99:mean(rs.map(r=>r.p99)),
+  p99min:Math.min(...rs.map(r=>r.p99)),p99max:Math.max(...rs.map(r=>r.p99)),runs:rs};});}
+const IPT=agg("iptables"), CIL=agg("cilium");
+const last=a=>a[a.length-1];
+
+/* results table */
+document.getElementById("tbody").innerHTML=NS.map((n,i)=>{const a=IPT[i],b=CIL[i];
+  return `<tr><td>${n.toLocaleString("en-US")}</td><td>${a.rules.toLocaleString("en-US")}</td><td>${b.rules.toLocaleString("en-US")}</td>
+  <td>${a.p50.toFixed(2)} ms</td><td>${b.p50.toFixed(2)} ms</td><td class="gap">+${(a.p50-b.p50).toFixed(2)} ms</td><td>${(a.p50/b.p50).toFixed(2)}×</td></tr>`;}).join("");
+
+/* concept cells */
+(function(){const N=48,hit=31,cilHit=19;
+  document.getElementById("cells-ipt").innerHTML=Array.from({length:N},(_,i)=>`<span class="cell ${i<hit?'walk':i===hit?'hit':''}"></span>`).join("");
+  document.getElementById("cells-cil").innerHTML=Array.from({length:N},(_,i)=>`<span class="cell ${i===cilHit?'hit':''}"></span>`).join("");
+})();
+
+/* tiny SVG chart kit */
+const path=pts=>"M"+pts.map(p=>p[0].toFixed(1)+","+p[1].toFixed(1)).join("L");
+const T=(x,y,txt,o={})=>`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${o.a||'start'}" class="${o.c||'lbl'} halo" style="fill:${o.f||'var(--ink)'}">${txt}</text>`;
+const dot=(x,y,r,f,stroke=true)=>`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" style="fill:${f}${stroke?';stroke:var(--surface);stroke-width:2':''}"/>`;
+const line=(pts,col,w=3,dash)=>`<path d="${path(pts)}" style="fill:none;stroke:${col};stroke-width:${w};stroke-linejoin:round;stroke-linecap:round${dash?';stroke-dasharray:'+dash:''}"/>`;
+const fmtK=(v,narrow)=>narrow?(v>=1000?(Math.round(v/100)/10)+"k":String(v)):v.toLocaleString("en-US");
+
+function chart(el,spec){
+  let lastW=0;
+  function render(){
+    const W=Math.round(el.clientWidth||700); if(W===lastW) return; lastW=W;
+    const narrow=W<560;
+    const H=Math.round(Math.max(330,Math.min(460,W*(narrow?0.95:0.56))));
+    const m={t:34,r:narrow?spec.rN:spec.r,b:50,l:narrow?38:48};
+    const X=v=>m.l+(v-spec.x[0])/(spec.x[1]-spec.x[0])*(W-m.l-m.r);
+    const Y=v=>H-m.b-(v-spec.y[0])/(spec.y[1]-spec.y[0])*(H-m.t-m.b);
+    const k={X,Y,W,H,m,narrow};
+    let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${spec.aria}">`;
+    spec.yTicks.forEach(t=>{s+=`<line x1="${m.l}" x2="${W-m.r}" y1="${Y(t)}" y2="${Y(t)}" class="gridl"/>`+
+      `<text x="${m.l-8}" y="${Y(t)+4}" text-anchor="end" class="tick">${t}</text>`;});
+    s+=`<line x1="${m.l}" x2="${W-m.r}" y1="${Y(spec.y[0])}" y2="${Y(spec.y[0])}" class="base"/>`;
+    const xt=(narrow&&spec.xTicksN)?spec.xTicksN:spec.xTicks;
+    xt.forEach(t=>{s+=`<text x="${X(t)}" y="${H-m.b+20}" text-anchor="middle" class="tick">${spec.xFmt?spec.xFmt(t,narrow):fmtK(t,narrow)}</text>`;});
+    s+=`<text x="${m.l-(narrow?30:40)}" y="${m.t-16}" class="axlab">${spec.yLabel}</text>`;
+    s+=`<text x="${W-m.r}" y="${H-8}" text-anchor="end" class="axlab">${spec.xLabel}</text>`;
+    s+=`<g class="ctx">${spec.context(k)}</g><g class="focus">${spec.focus(k)}</g></svg>`;
+    el.innerHTML=s;
+  }
+  let raf; new ResizeObserver(()=>{cancelAnimationFrame(raf);raf=requestAnimationFrame(render);}).observe(el);
+  render();
+}
+
+/* reveal toggles */
+document.querySelectorAll("figure .toggle").forEach(b=>b.addEventListener("click",()=>{
+  const f=b.closest("figure"); const on=f.classList.toggle("reveal");
+  b.setAttribute("aria-pressed",on); b.textContent=on?"Back to the story":"Show all data";
+}));
+
+const IPTC="var(--ipt)", CILC="var(--cil)", CTX="var(--ctx)", MUT="var(--muted)";
+
+/* charts start at 2,080 Services; the 100-Service baseline stays in the table */
+const NSv=NS.slice(1), IPTv=IPT.slice(1), CILv=CIL.slice(1), RAWv=RAW.filter(r=>r.n>100);
+
+/* 1. hero: p50 vs services */
+chart(document.getElementById("c1"),{
+  aria:"Line chart of median latency against number of Services. iptables rises from 2.36 to 4.74 milliseconds; Cilium stays near 2.25 milliseconds.",
+  x:[2080,10000],y:[0,6],r:120,rN:74,xTicks:NSv,xTicksN:[2080,6040,10000],yTicks:[0,1,2,3,4,5,6],
+  yLabel:"Median latency (p50), ms",xLabel:"Number of Services",
+  context:({X,Y,narrow})=>{
+    let s="";
+    s+=line(IPTv.map(d=>[X(d.n),Y(d.p90)]),CTX,1.6,"5 4")+line(CILv.map(d=>[X(d.n),Y(d.p90)]),CTX,1.6,"5 4");
+    s+=T(X(10000)+8,Y(last(IPTv).p90)+4,"iptables p90",{c:"note",f:MUT})+T(X(10000)+8,Y(last(CILv).p90)+4,"Cilium p90",{c:"note",f:MUT});
+    RAWv.forEach(r=>{s+=dot(X(r.n)+(r.run-2)*4,Y(r.p50),2.6,CTX,false);});
+    return s;
+  },
+  focus:({X,Y,narrow})=>{
+    let s="";
+    s+=line(CILv.map(d=>[X(d.n),Y(d.p50)]),CILC,3.2)+line(IPTv.map(d=>[X(d.n),Y(d.p50)]),IPTC,3.2);
+    CILv.forEach(d=>s+=dot(X(d.n),Y(d.p50),4.2,CILC)); IPTv.forEach(d=>s+=dot(X(d.n),Y(d.p50),4.2,IPTC));
+    const xe=X(10000)+12, a=last(IPTv), b=last(CILv);
+    s+=T(xe,Y(a.p50)-2,"iptables",{f:IPTC})+T(xe,Y(a.p50)+15,a.p50.toFixed(2)+" ms",{f:IPTC});
+    s+=T(xe,Y(b.p50)+18,"Cilium",{f:CILC})+T(xe,Y(b.p50)+35,b.p50.toFixed(2)+" ms",{f:CILC});
+    const bx=X(10000)-16;
+    s+=`<path d="M${bx+6},${Y(a.p50)}H${bx}V${Y(b.p50)}H${bx+6}" style="fill:none;stroke:var(--ink);stroke-width:1.5"/>`;
+    const my=narrow?Y(5.55):(Y(a.p50)+Y(b.p50))/2;
+    s+=T(bx-8,my+2,"+"+(a.p50-b.p50).toFixed(2)+" ms",{a:"end",c:"lbl-big"});
+    s+=T(bx-8,my+20,(a.p50/b.p50).toFixed(1)+"× slower",{a:"end",c:"lbl",f:MUT});
+    s+=T(X(2080)+4,Y(1.35),"Already 0.51 ms apart",{c:"lbl"});
+    s+=T(X(2080)+4,Y(1.35)+17,"at 2,080 Services",{c:"note",f:MUT});
+    s+=`<line x1="${X(2080)+2}" x2="${X(2080)+2}" y1="${Y(2.2)}" y2="${Y(1.35)-15}" style="stroke:var(--muted);stroke-width:1"/>`;
+    return s;
+  }
+});
+
+/* 2. p50 vs table size */
+chart(document.getElementById("c2"),{
+  aria:"Median latency against the number of entries in each datapath table. Cilium stays flat up to 50,146 entries; iptables rises with every rule.",
+  x:[0,115000],y:[0,6],r:36,rN:18,xTicks:[0,20000,40000,60000,80000,100000],yTicks:[0,1,2,3,4,5,6],
+  xFmt:v=>v===0?"0":(v/1000)+"k",
+  yLabel:"Median latency (p50), ms",xLabel:"Entries in the datapath table",
+  context:({X,Y,narrow})=>{
+    let s="";
+    const tail=IPTv.slice(1);
+    s+=line(tail.map(d=>[X(d.rules),Y(d.p50)]),IPTC,2.4);
+    tail.slice(1).forEach(d=>s+=dot(X(d.rules),Y(d.p50),3.6,IPTC));
+    const e=last(IPTv);
+    s+=T(X(e.rules),Y(e.p50)-14,"iptables keeps going: "+e.rules.toLocaleString("en-US")+" rules, "+e.p50.toFixed(2)+" ms",{a:"end",c:"note",f:MUT});
+    return s;
+  },
+  focus:({X,Y,narrow})=>{
+    let s="";
+    const a=IPTv[1], b=last(CILv);
+    s+=`<rect x="${X(a.rules)-6}" y="${Y(6)}" width="${X(b.rules)-X(a.rules)+12}" height="${Y(0)-Y(6)}" style="fill:var(--ink);opacity:.06" rx="4"/>`;
+    s+=line(CILv.map(d=>[X(d.rules),Y(d.p50)]),CILC,3.2);
+    s+=line(IPTv.slice(0,2).map(d=>[X(d.rules),Y(d.p50)]),IPTC,3.2);
+    CILv.slice(0,-1).forEach(d=>s+=dot(X(d.rules),Y(d.p50),3.6,CILC));
+    IPTv.slice(0,1).forEach(d=>s+=dot(X(d.rules),Y(d.p50),3.6,IPTC));
+    s+=dot(X(a.rules),Y(a.p50),6.5,IPTC)+dot(X(b.rules),Y(b.p50),6.5,CILC);
+    const lx=X(b.rules)+14;
+    const ax=X(a.rules)-14;
+    s+=T(ax,Y(a.p50)-40,narrow?"iptables, 44.7k rules":"iptables: "+a.rules.toLocaleString("en-US")+" rules",{a:"end",f:IPTC});
+    s+=T(ax,Y(a.p50)-16,a.p50.toFixed(2)+" ms",{a:"end",c:"lbl-big",f:IPTC});
+    s+=T(lx,Y(b.p50)+22,narrow?"Cilium, 50.1k entries":"Cilium: "+b.rules.toLocaleString("en-US")+" entries",{f:CILC});
+    s+=T(lx,Y(b.p50)+46,b.p50.toFixed(2)+" ms",{c:"lbl-big",f:CILC});
+    const sx=narrow?X(2000):X(8000);
+    s+=T(sx,Y(1.1),"Similar table size,",{c:"lbl"})+T(sx,Y(1.1)+17,"about 1.1 ms apart",{c:"note",f:MUT});
+    return s;
+  }
+});
+
+/* 3. p99 tail */
+chart(document.getElementById("c3"),{
+  aria:"99th percentile latency against number of Services. iptables rises from 3.82 to 7.40 milliseconds; Cilium varies between 4.8 and 6 milliseconds without a trend.",
+  x:[2080,10000],y:[0,10],r:120,rN:74,xTicks:NSv,xTicksN:[2080,6040,10000],yTicks:[0,2,4,6,8,10],
+  yLabel:"Tail latency (p99), ms",xLabel:"Number of Services",
+  context:({X,Y})=>{
+    let s="";
+    const top=CILv.map(d=>[X(d.n),Y(d.p99max)]), bot=CILv.map(d=>[X(d.n),Y(d.p99min)]).reverse();
+    s+=`<path d="${path(top.concat(bot))}Z" style="fill:var(--ctx);opacity:.45"/>`;
+    RAWv.forEach(r=>s+=dot(X(r.n)+(r.run-2)*4,Y(r.p99),2.6,CTX,false));
+    s+=T(X(4060)+10,Y(8.44)+4,"one Cilium run hit 8.44 ms",{c:"note",f:MUT});
+    return s;
+  },
+  focus:({X,Y})=>{
+    let s="";
+    s+=line(CILv.map(d=>[X(d.n),Y(d.p99)]),CILC,3)+line(IPTv.map(d=>[X(d.n),Y(d.p99)]),IPTC,3.2);
+    CILv.forEach(d=>s+=dot(X(d.n),Y(d.p99),4,CILC)); IPTv.forEach(d=>s+=dot(X(d.n),Y(d.p99),4.2,IPTC));
+    const xe=X(10000)+12,a=last(IPTv),b=last(CILv);
+    s+=T(xe,Y(a.p99)-2,"iptables",{f:IPTC})+T(xe,Y(a.p99)+15,a.p99.toFixed(2)+" ms",{f:IPTC});
+    s+=T(xe,Y(b.p99)+4,"Cilium",{f:CILC})+T(xe,Y(b.p99)+21,b.p99.toFixed(2)+" ms",{f:CILC});
+    s+=T(X(2080)+4,Y(2.3),"At 2,080 Services iptables",{c:"lbl"});
+    s+=T(X(2080)+4,Y(2.3)+17,"still has the tighter tail: 4.30 vs 5.27 ms",{c:"note",f:MUT});
+    s+=`<line x1="${X(2080)+2}" x2="${X(2080)+2}" y1="${Y(4.05)}" y2="${Y(2.3)-15}" style="stroke:var(--muted);stroke-width:1"/>`;
+    return s;
+  }
+});
+
+/* 4. target position vs latency (iptables) */
+chart(document.getElementById("c4"),{
+  aria:"iptables median latency against the position of the target Service in the KUBE-SERVICES chain. The 6,040-Service run matched at position 434 yet was slower than the 4,060-Service run that matched at position 2,776.",
+  x:[0,5000],y:[2,5],r:24,rN:12,xTicks:[0,1000,2000,3000,4000,5000],yTicks:[2,2.5,3,3.5,4,4.5,5],
+  xFmt:(v,n)=>n?(v===0?"0":(v/1000)+"k"):v.toLocaleString("en-US"),
+  yLabel:"Median latency (p50), ms",xLabel:"Position of the matching rule in KUBE-SERVICES",
+  context:({X,Y,narrow})=>{
+    let s="";
+    IPTv.filter(d=>d.n!==4060&&d.n!==6040).forEach(d=>{
+      s+=dot(X(d.pos),Y(d.p50),5,CTX);
+      const right=d.pos<3500;
+      s+=T(X(d.pos)+(right?10:-10),Y(d.p50)+4,d.n.toLocaleString("en-US")+" Services",{a:right?"start":"end",c:"note",f:MUT});
+    });
+    return s;
+  },
+  focus:({X,Y,narrow})=>{
+    let s="";
+    const a=IPTv.find(d=>d.n===6040), b=IPTv.find(d=>d.n===4060);
+    s+=dot(X(a.pos),Y(a.p50),7,IPTC)+dot(X(b.pos),Y(b.p50),7,IPTC);
+    s+=T(X(a.pos)+12,Y(a.p50)+(narrow?44:22),narrow?"6,040 svc, rule 434":"6,040 Services, match at rule 434",{f:IPTC});
+    s+=T(X(a.pos)+12,Y(a.p50)+(narrow?68:46),a.p50.toFixed(2)+" ms",{c:"lbl-big",f:IPTC});
+    const rx=narrow?X(b.pos):X(b.pos)+12, an=narrow?"middle":"start";
+    const o1=narrow?-42:28, o2=narrow?-18:52;
+    s+=T(rx,Y(b.p50)+o1,narrow?"4,060 svc, rule 2,776":"4,060 Services, match at rule 2,776",{a:an,f:IPTC});
+    s+=T(rx,Y(b.p50)+o2,b.p50.toFixed(2)+" ms",{a:an,c:"lbl-big",f:IPTC});
+    return s;
+  }
+});
+})();
+</script>
+</body>
+</html>
