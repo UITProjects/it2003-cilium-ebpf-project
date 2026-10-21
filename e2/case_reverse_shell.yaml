@@ -1,0 +1,43 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: dvwa-exec-protection
+  namespace: dvwa
+
+spec:
+  endpointSelector:
+    matchLabels:
+      app: dvwa
+
+  ingress:
+    - fromEntities:
+        - all
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+          # L4 access only: callback protection is enforced by egress below.
+          # Do not redirect portal HTTP through an unnecessary L7 proxy.
+
+  egress:
+    # Keep the command-execution lab's IPv4 ping working.
+    # No CIDR selector: echo requests may target world, nodes, or pods.
+    - icmps:
+        - fields:
+            - family: IPv4
+              type: 8
+
+    # Resolve ping hostnames through cluster DNS only.
+    - toEndpoints:
+        - matchLabels:
+            "k8s:io.kubernetes.pod.namespace": kube-system
+            "k8s:k8s-app": kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # All other new outbound connections are denied by default, including
+    # callbacks on TCP 80/443/4444. Replies to inbound HTTP remain allowed.
+    # MariaDB shares this pod and uses loopback, which this policy does not filter.
