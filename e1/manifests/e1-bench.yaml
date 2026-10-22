@@ -1,10 +1,11 @@
 # E1 test apps.
 #   - e1-pause      : 3 tiny pause pods (one per node). Every fake Service selects these,
 #                     so each Service has 3 real endpoints -> full KUBE-SVC/KUBE-SEP chains.
-#   - fortio-server : the real target, pinned to node-1, exposed by Service "fortio-server".
-#   - fortio-client : load generator, pinned to node-2 (the node whose rules we count).
+#   - fortio-server : the real target, exposed by Service "fortio-server".
+#   - fortio-client : load generator, on the node whose rules we count.
 #
-# Node names are the defaults. run-e1.sh rewrites them if SERVER_NODE / CLIENT_NODE are set.
+# Anti-affinity keeps server and client apart. scripts/run-e1.py deploy also injects a hard
+# nodeSelector (auto-detected or --server-node / --client-node) before applying.
 # No CPU limits on purpose: CFS throttling would add latency noise.
 apiVersion: v1
 kind: Namespace
