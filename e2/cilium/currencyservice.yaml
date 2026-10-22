@@ -1,0 +1,26 @@
+# Selected workload: app=currencyservice, ServiceAccount=currencyservice (verified against Deployment).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: boutique-currencyservice
+  namespace: microservices-google-demo
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:app: currencyservice
+      k8s:io.cilium.k8s.policy.serviceaccount: currencyservice
+      k8s:io.kubernetes.pod.namespace: microservices-google-demo
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:app: frontend
+            k8s:io.cilium.k8s.policy.serviceaccount: frontend
+            k8s:io.kubernetes.pod.namespace: microservices-google-demo
+        - matchLabels:
+            k8s:app: checkoutservice
+            k8s:io.cilium.k8s.policy.serviceaccount: checkoutservice
+            k8s:io.kubernetes.pod.namespace: microservices-google-demo
+      toPorts:
+        - ports:
+            - port: "7000"
+              protocol: TCP

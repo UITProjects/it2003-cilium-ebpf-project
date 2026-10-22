@@ -1,0 +1,16 @@
+# Scope: microservices-google-demo only. Generated from the Online Boutique call graph.
+# Ports below are destination Pod ports, not Service ports.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: boutique-default-deny
+  namespace: microservices-google-demo
+spec:
+  endpointSelector: {}
+  enableDefaultDeny:
+    ingress: true
+    egress: true
+  ingress:
+    - {}
+  egress:
+    - {}

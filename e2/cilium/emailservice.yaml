@@ -1,0 +1,22 @@
+# Selected workload: app=emailservice, ServiceAccount=emailservice (verified against Deployment).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: boutique-emailservice
+  namespace: microservices-google-demo
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:app: emailservice
+      k8s:io.cilium.k8s.policy.serviceaccount: emailservice
+      k8s:io.kubernetes.pod.namespace: microservices-google-demo
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:app: checkoutservice
+            k8s:io.cilium.k8s.policy.serviceaccount: checkoutservice
+            k8s:io.kubernetes.pod.namespace: microservices-google-demo
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP

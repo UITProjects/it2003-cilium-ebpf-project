@@ -1,0 +1,41 @@
+# Optional, NOT deployed by this documentation task.
+# Requires kernel/Tetragon support for overriding security_file_permission.
+# First verify the matching monitor policy emits the expected read event.
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicyNamespaced
+metadata:
+  name: dvwa-token-enforce
+  namespace: dvwa
+spec:
+  podSelector:
+    matchLabels:
+      app: dvwa
+  options:
+    - name: policy-mode
+      value: enforce
+  kprobes:
+    - call: security_file_permission
+      syscall: false
+      args:
+        - index: 0
+          type: file
+        - index: 1
+          type: int
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: Prefix
+              values:
+                - /var/run/secrets/kubernetes.io/serviceaccount/
+                - /run/secrets/kubernetes.io/serviceaccount/
+            - index: 0
+              operator: Postfix
+              values:
+                - /token
+            - index: 1
+              operator: Mask
+              values:
+                - "4"
+          matchActions:
+            - action: Override
+              argError: -13

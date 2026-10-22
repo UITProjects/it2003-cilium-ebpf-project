@@ -1,0 +1,22 @@
+# Selected workload: app=paymentservice, ServiceAccount=paymentservice (verified against Deployment).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: boutique-paymentservice
+  namespace: microservices-google-demo
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:app: paymentservice
+      k8s:io.cilium.k8s.policy.serviceaccount: paymentservice
+      k8s:io.kubernetes.pod.namespace: microservices-google-demo
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:app: checkoutservice
+            k8s:io.cilium.k8s.policy.serviceaccount: checkoutservice
+            k8s:io.kubernetes.pod.namespace: microservices-google-demo
+      toPorts:
+        - ports:
+            - port: "50051"
+              protocol: TCP

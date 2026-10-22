@@ -1,0 +1,22 @@
+# Selected workload: app=redis-cart, ServiceAccount=default (verified against Deployment).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: boutique-redis-cart
+  namespace: microservices-google-demo
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:app: redis-cart
+      k8s:io.cilium.k8s.policy.serviceaccount: default
+      k8s:io.kubernetes.pod.namespace: microservices-google-demo
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:app: cartservice
+            k8s:io.cilium.k8s.policy.serviceaccount: cartservice
+            k8s:io.kubernetes.pod.namespace: microservices-google-demo
+      toPorts:
+        - ports:
+            - port: "6379"
+              protocol: TCP

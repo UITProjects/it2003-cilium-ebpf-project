@@ -1,0 +1,77 @@
+# Selected workload: app=checkoutservice, ServiceAccount=checkoutservice (verified against Deployment).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: boutique-checkoutservice
+  namespace: microservices-google-demo
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:app: checkoutservice
+      k8s:io.cilium.k8s.policy.serviceaccount: checkoutservice
+      k8s:io.kubernetes.pod.namespace: microservices-google-demo
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:app: frontend
+            k8s:io.cilium.k8s.policy.serviceaccount: frontend
+            k8s:io.kubernetes.pod.namespace: microservices-google-demo
+      toPorts:
+        - ports:
+            - port: "5050"
+              protocol: TCP
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:app: productcatalogservice
+            k8s:io.cilium.k8s.policy.serviceaccount: productcatalogservice
+            k8s:io.kubernetes.pod.namespace: microservices-google-demo
+      toPorts:
+        - ports:
+            - port: "3550"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            k8s:app: cartservice
+            k8s:io.cilium.k8s.policy.serviceaccount: cartservice
+            k8s:io.kubernetes.pod.namespace: microservices-google-demo
+      toPorts:
+        - ports:
+            - port: "7070"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            k8s:app: shippingservice
+            k8s:io.cilium.k8s.policy.serviceaccount: shippingservice
+            k8s:io.kubernetes.pod.namespace: microservices-google-demo
+      toPorts:
+        - ports:
+            - port: "50051"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            k8s:app: currencyservice
+            k8s:io.cilium.k8s.policy.serviceaccount: currencyservice
+            k8s:io.kubernetes.pod.namespace: microservices-google-demo
+      toPorts:
+        - ports:
+            - port: "7000"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            k8s:app: paymentservice
+            k8s:io.cilium.k8s.policy.serviceaccount: paymentservice
+            k8s:io.kubernetes.pod.namespace: microservices-google-demo
+      toPorts:
+        - ports:
+            - port: "50051"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            k8s:app: emailservice
+            k8s:io.cilium.k8s.policy.serviceaccount: emailservice
+            k8s:io.kubernetes.pod.namespace: microservices-google-demo
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
