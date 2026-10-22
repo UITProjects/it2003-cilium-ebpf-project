@@ -1,11 +1,3 @@
-# E1 test apps.
-#   - e1-pause      : 3 tiny pause pods (one per node). Every fake Service selects these,
-#                     so each Service has 3 real endpoints -> full KUBE-SVC/KUBE-SEP chains.
-#   - fortio-server : the real target, pinned to node-1, exposed by Service "fortio-server".
-#   - fortio-client : load generator, pinned to node-2 (the node whose rules we count).
-#
-# Node names are the defaults. run-e1.sh rewrites them if SERVER_NODE / CLIENT_NODE are set.
-# No CPU limits on purpose: CFS throttling would add latency noise.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -68,8 +60,6 @@ spec:
         app: fortio-server
         role: e1-fortio
     spec:
-      nodeSelector:
-        kubernetes.io/hostname: it-2003-ubuntu2404-4
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -80,7 +70,10 @@ spec:
       containers:
       - name: fortio
         image: fortio/fortio:1.75.3
-        args: [ "server", "-http-port", "8080" ]
+        args:
+        - server
+        - -http-port
+        - '8080'
         ports:
         - name: http
           containerPort: 8080
@@ -96,6 +89,8 @@ spec:
           limits:
             cpu: 1000m
             memory: 256Mi
+      nodeSelector:
+        kubernetes.io/hostname: it-2003-ubuntu2404-4
 ---
 apiVersion: v1
 kind: Service
@@ -128,8 +123,6 @@ spec:
         app: fortio-client
         role: e1-fortio
     spec:
-      nodeSelector:
-        kubernetes.io/hostname: it-2003-ubuntu2404-5
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -140,7 +133,10 @@ spec:
       containers:
       - name: fortio
         image: fortio/fortio:1.75.3
-        args: [ "server", "-http-port", "8080" ]
+        args:
+        - server
+        - -http-port
+        - '8080'
         resources:
           requests:
             cpu: 500m
@@ -148,3 +144,5 @@ spec:
           limits:
             cpu: 2000m
             memory: 512Mi
+      nodeSelector:
+        kubernetes.io/hostname: it-2003-ubuntu2404-5
