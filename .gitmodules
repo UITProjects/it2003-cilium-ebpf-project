@@ -4,3 +4,6 @@
 [submodule "infrastructure/configuration/kubespray"]
 	path = infrastructure/configuration/kubespray
 	url = https://github.com/kubernetes-sigs/kubespray.git
+[submodule "docs-latex"]
+	path = docs-latex
+	url = https://git@latex.uitiot.vn/git/6acce09269cfe23b817ec4b1

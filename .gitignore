@@ -224,3 +224,7 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 .venv/
+# Local AI agent skills (not part of the project)
+.claude/
+.agents/
+skills-lock.json
