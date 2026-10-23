@@ -58,7 +58,7 @@ Học kì II, 2025–2026
 2. **Cơ sở lý thuyết**
    - Mô hình mạng K8s, primitive của Linux
    - Netfilter/iptables và eBPF
-   - Đường đi gói tin
+   - Đường đi packet
 3. **Hạ tầng thực nghiệm**
 
 </div>
@@ -76,17 +76,17 @@ Học kì II, 2025–2026
 
 # Bối cảnh: giới hạn của iptables ở quy mô cloud-native
 
-Kubernetes giao mạng cho **CNI** (IP, routing, NetworkPolicy) và **kube-proxy** (ClusterIP của Service). Cả hai truyền thống đều dựa trên **Netfilter/iptables**, vốn được thiết kế cho tập luật tường lửa tĩnh.
+Kubernetes giao mạng cho **CNI** (IP, routing, NetworkPolicy) và **kube-proxy** (ClusterIP của Service). Cả hai truyền thống đều dựa trên **Netfilter/iptables**, vốn được thiết kế cho tập rule firewall tĩnh.
 
 <v-clicks>
 
 | Vấn đề | Nguyên nhân |
 |---|---|
-| **Độ phức tạp tuyến tính** | Gói đầu tiên của mỗi kết nối so khớp tuần tự chuỗi luật Service → $O(n)$ |
-| **Cập nhật nguyên khối** | Đổi 1 Service → ghi lại bảng luật qua `iptables-restore` |
-| **Tranh chấp conntrack** | Bảng `nf_conntrack` dùng chung → nghẽn khi tạo kết nối mới nhanh |
-| **Chính sách gắn với IP** | NetworkPolicy → tập IP; IP Pod tạm thời → đồng bộ lại trên mọi node |
-| **Quan sát kém** | Drop chỉ tăng bộ đếm luật, không biết Pod/chính sách nào |
+| **Độ phức tạp tuyến tính** | Packet đầu tiên của mỗi connection so khớp tuần tự chain rule Service → $O(n)$ |
+| **Cập nhật nguyên khối** | Đổi 1 Service → ghi lại rule table qua `iptables-restore` |
+| **Tranh chấp conntrack** | Table `nf_conntrack` dùng chung → nghẽn khi tạo connection mới nhanh |
+| **Policy gắn với IP** | NetworkPolicy → tập IP; IP Pod tạm thời → đồng bộ lại trên mọi node |
+| **Observability kém** | Drop chỉ tăng counter rule, không biết Pod/policy nào |
 
 </v-clicks>
 
@@ -142,7 +142,7 @@ transition: slide-up | slide-down
 
 <div v-click="3" class="small text-center mt-2">
 
-**Service**: ClusterIP ảo **không gắn interface**, chỉ là luật **DNAT** trên mỗi node (kube-proxy / eBPF)
+**Service**: ClusterIP ảo **không gắn interface**, chỉ là rule **DNAT** trên mỗi node (kube-proxy / eBPF)
 
 </div>
 
@@ -166,15 +166,15 @@ transition: slide-up | slide-down
 
 <v-clicks>
 
-- 5 hook, luật tổ chức thành **bảng** (`filter`, `nat`, `mangle`, `raw`) và **chuỗi**. Mỗi chuỗi là **danh sách duyệt tuần tự** đến target kết thúc (`ACCEPT`, `DROP`, `DNAT`…)
-- **conntrack**: chỉ **gói đầu tiên** duyệt bảng `nat`; quyết định NAT được lưu cho các gói sau
-- → Chi phí iptables tập trung ở <span class="hl">**thiết lập kết nối**</span> → E1 đo **kết nối mới cho mỗi request**
+- 5 hook, rule tổ chức thành **table** (`filter`, `nat`, `mangle`, `raw`) và **chain**. Mỗi chain là **danh sách duyệt tuần tự** đến target kết thúc (`ACCEPT`, `DROP`, `DNAT`…)
+- **conntrack**: chỉ **packet đầu tiên** duyệt table `nat`; quyết định NAT được lưu cho các packet sau
+- → Chi phí iptables tập trung ở <span class="hl">**thiết lập connection**</span> → E1 đo **connection mới cho mỗi request**
 
 </v-clicks>
 
 ---
 
-# eBPF: máy ảo an toàn trong nhân Linux
+# eBPF: máy ảo an toàn trong kernel Linux
 
 <EbpfVM />
 
@@ -189,7 +189,7 @@ transition: slide-up | slide-down
 <div>
 
 - **sock_ops / sk_msg** (sockmap): nối thẳng 2 socket cùng host
-- **kprobe, tracepoint, LSM**: quan sát & bảo mật runtime (Tetragon)
+- **kprobe, tracepoint, LSM**: observability & bảo mật runtime (Tetragon)
 
 </div>
 </div>
@@ -202,7 +202,7 @@ transition: slide-up | slide-down
 <div class="small">
 
 ### BPF map
-- Chương trình eBPF **không giữ trạng thái**; trạng thái nằm trong **map** key-value trong nhân, đọc/ghi từ cả eBPF và user space
+- Chương trình eBPF **không giữ trạng thái**; trạng thái nằm trong **map** key-value trong kernel, read/write từ cả eBPF và user space
 - Loại: hash, **LRU hash**, array, **LPM trie** (CIDR), per-CPU, ring buffer / perf (đẩy sự kiện)
 - Cập nhật **nguyên tử từng phần tử** → không cần nạp lại chương trình
 - Kích thước cố định khi tạo → định cỡ theo quy mô cụm
@@ -218,19 +218,19 @@ transition: slide-up | slide-down
 | `cilium_lb4_services_v2` / `backends_v3` | Service & backend |
 | `cilium_ct4_global` | conntrack riêng |
 | `cilium_ipcache` | IP → security identity |
-| `cilium_policy_*` | chính sách từng endpoint |
+| `cilium_policy_*` | policy từng endpoint |
 
 </div>
 </div>
 
 ---
 
-# Đường đi gói tin: intra-pod & intra-node
+# Đường đi packet: intra-pod & intra-node
 
 <div class="small mb-2">
 
 **Intra-pod:** các container chung netns → chung IP & không gian cổng, nói chuyện qua `localhost` (vẫn qua toàn bộ TCP/IP stack; sockmap có thể bỏ qua).
-**Intra-node:** iptables đi qua bridge/route /32, toàn bộ Netfilter của host; Cilium **redirect thẳng** sang veth Pod đích (BPF host routing, nhân ≥ 5.10).
+**Intra-node:** iptables đi qua bridge/route /32, toàn bộ Netfilter của host; Cilium **redirect thẳng** sang veth Pod đích (BPF host routing, kernel ≥ 5.10).
 
 </div>
 
@@ -240,7 +240,7 @@ transition: slide-up | slide-down
 
 ---
 
-# Đường đi gói tin: inter-node (direct routing)
+# Đường đi packet: inter-node (direct routing)
 
 <DirectRouting />
 
@@ -251,7 +251,7 @@ transition: slide-up | slide-down
 
 ---
 
-# Cân bằng tải Service: kube-proxy iptables (E1)
+# Load balancing Service: kube-proxy iptables (E1)
 
 ```text {1|2-3|4-5}
 -A KUBE-SERVICES -d 10.233.12.34/32 -p tcp --dport 80 -j KUBE-SVC-ABCD
@@ -264,15 +264,15 @@ transition: slide-up | slide-down
 <div class="cmp small mt-3">
 <div v-click>
 
-- `KUBE-SERVICES`: **1 luật / (ClusterIP, port)**, gọi từ `PREROUTING` & `OUTPUT`
+- `KUBE-SERVICES`: **1 rule / (ClusterIP, port)**, gọi từ `PREROUTING` & `OUTPUT`
 - `KUBE-SVC-*`: chọn backend ngẫu nhiên (`statistic`, 1/n, 1/(n-1)…)
 - `KUBE-SEP-*`: **DNAT** tới Pod backend
 
 </div>
 <div v-click>
 
-- **Tra cứu $O(n)$**: SYN có thể duyệt hàng nghìn luật → lộ rõ với TCP_CRR
-- **Cập nhật**: `iptables-restore` giữ khoá xtables, chậm theo kích thước bảng (partial sync từ 1.27)
+- **Tra cứu $O(n)$**: SYN có thể duyệt hàng nghìn rule → lộ rõ với TCP_CRR
+- **Cập nhật**: `iptables-restore` giữ khoá xtables, chậm theo kích thước table (partial sync từ 1.27)
 - **conntrack** chung: tranh chấp khoá, giới hạn `nf_conntrack_max`
 
 </div>
@@ -286,7 +286,7 @@ transition: slide-up | slide-down
 <div>
 
 - Service/backend trong **BPF hash map** → tra cứu theo (VIP, port, proto) **$O(1)$**
-- **Socket-level LB**: hook `connect()` dịch ClusterIP → backend ngay ở socket, không NAT từng gói
+- **Socket-level LB**: hook `connect()` dịch ClusterIP → backend ngay ở socket, không NAT từng packet
 - NodePort/LoadBalancer: xử lý tại **TC / XDP**
 
 </div>
@@ -315,7 +315,7 @@ clicks: 5
 
 # Topology homelab
 
-<div class="tiny muted -mt-3 mb-1">Terraform (bpg/proxmox) · Ansible · Kubespray · Cilium bằng Helm. Hai cụm 3 node song song, VM giống hệt nhau (4 vCPU, 4 GiB, 120 GB, Ubuntu 24.04, nhân 6.8).</div>
+<div class="tiny muted -mt-3 mb-1">Terraform (bpg/proxmox) · Ansible · Kubespray · Cilium bằng Helm. Hai cụm 3 node song song, VM giống hệt nhau (4 vCPU, 4 GiB, 120 GB, Ubuntu 24.04, kernel 6.8).</div>
 
 <Topology />
 
@@ -327,16 +327,16 @@ clicks: 5
 |---|---|---|
 | **CNI** | Calico (Kubespray), iptables dataplane | Cilium 1.20.1 (Helm) |
 | **Service datapath** | kube-proxy, `kube_proxy_mode: iptables` | `kubeProxyReplacement: true` (không kube-proxy) |
-| **Định tuyến Pod** | Direct routing, BGP (BIRD) | Direct routing, `autoDirectNodeRoutes` |
+| **Pod routing** | Direct routing, BGP (BIRD) | Direct routing, `autoDirectNodeRoutes` |
 | **Masquerade** | iptables | eBPF (`bpf.masquerade`) |
 | **Pod CIDR** | 10.244.0.0/16, khối /26 | 10.244.0.0/16, /24 mỗi node |
 | **LoadBalancer** | – | LB-IPAM + L2 announcement, .40.130–150 |
-| **Quan sát** | – | Hubble, Relay, UI (192.168.40.132) |
-| **Kubernetes / nhân** | v1.35.8 · 6.8.0-142 | v1.35.7–8 · 6.8.0-142 |
+| **Observability** | – | Hubble, Relay, UI (192.168.40.132) |
+| **Kubernetes / kernel** | v1.35.8 · 6.8.0-142 | v1.35.7–8 · 6.8.0-142 |
 
 <div class="small mt-3" v-click>
 
-Cả hai dùng **direct routing**, MTU 1500 → khác biệt đo được phản ánh **cách xử lý Service & chính sách**, không phải chi phí đóng gói.
+Cả hai dùng **direct routing**, MTU 1500 → khác biệt đo được phản ánh **cách xử lý Service & policy**, không phải chi phí encapsulation.
 Truy cập: OpenVPN (10.8.0.0/24) để vào IP L2 nội bộ khi demo; SSH/`kubectl` qua cổng forward (`:2443` Cilium, `:2444` Calico).
 
 </div>
@@ -360,16 +360,16 @@ iptables duyệt `KUBE-SERVICES` tuần tự → độ trễ **tăng theo N**; C
 
 ### Tải nền
 - $N \in \{100;\ 2080;\ 4060;\ 6040;\ 8020;\ 10000\}$ Service giả
-- Mỗi Service → 3 Pod `pause` → ~**11 luật nat** (iptables) / ~**5 dòng** LB map (Cilium)
+- Mỗi Service → 3 Pod `pause` → ~**11 rule nat** (iptables) / ~**5 dòng** LB map (Cilium)
 
 </div>
 <div v-click>
 
 ### Đo
-- **fortio 1.75.3**, client & server trên 2 worker khác nhau, gọi **ClusterIP** với `-keepalive=false` (mỗi request 1 kết nối TCP mới)
-- 200 req/s · 4 kết nối · 30 s · warm-up 5 s
-- Chờ EndpointSlice + số luật ổn định + 20 s rồi mới đo
-- 3 lần / N → **36 lần chạy**, kích thước bảng đọc trên node client (`iptables-save -t nat`, `cilium-dbg bpf lb list`)
+- **fortio 1.75.3**, client & server trên 2 worker khác nhau, gọi **ClusterIP** với `-keepalive=false` (mỗi request 1 connection TCP mới)
+- 200 req/s · 4 connection · 30 s · warm-up 5 s
+- Chờ EndpointSlice + số rule ổn định + 20 s rồi mới đo
+- 3 lần / N → **36 lần chạy**, kích thước table đọc trên node client (`iptables-save -t nat`, `cilium-dbg bpf lb list`)
 - Tải nền giống nhau trên 2 cụm (Prometheus, Loki, Alloy, metrics-server); Tetragon tạm dừng khi đo
 
 </div>
@@ -383,7 +383,7 @@ iptables duyệt `KUBE-SERVICES` tuần tự → độ trễ **tăng theo N**; C
 
 <div v-click>
 
-| N Service | Bảng iptables | Bảng Cilium | p50 iptables (ms) | p50 Cilium (ms) | p99 ipt / cil (ms) | p50 ipt/cil |
+| N Service | Table iptables | Table Cilium | p50 iptables (ms) | p50 Cilium (ms) | p99 ipt / cil (ms) | p50 ipt/cil |
 |---:|---:|---:|---:|---:|---:|---:|
 | 100 | 1 303 | 664 | 2.33 | 2.48 | 4.28 / 6.59 | 0.94 |
 | 4 060 | 44 863 | 20 464 | 3.31 | 2.36 | 6.08 / 5.03 | 1.40 |
@@ -412,8 +412,8 @@ iptables duyệt `KUBE-SERVICES` tuần tự → độ trễ **tăng theo N**; C
 <v-clicks>
 
 - **Cilium phẳng**: p50 2.48 → 2.37 ms (100 → 10 000 Service), độ dốc ≈ −0.016 ms / 1 000 Service, trong biên dao động
-- **iptables tuyến tính** ($r = 0.999$): +0.26 ms / 1 000 Service; p50 tăng **+112%**; ở 10 000 Service **chậm 2.08×**, +2.56 ms mỗi kết nối mới
-- **Cách tra cứu quyết định, không phải kích thước bảng**: Cilium 50 164 entry → 2.37 ms; iptables 44 863 luật → 3.31 ms
+- **iptables tuyến tính** ($r = 0.999$): +0.26 ms / 1 000 Service; p50 tăng **+112%**; ở 10 000 Service **chậm 2.08×**, +2.56 ms mỗi connection mới
+- **Cách tra cứu quyết định, không phải kích thước table**: Cilium 50 164 entry → 2.37 ms; iptables 44 863 rule → 3.31 ms
 - **p99**: iptables đuôi ngắn hơn ở quy mô nhỏ, hai đường **cắt nhau ≈ 3 000 Service**
 - 216 000 request, **0 lỗi**: khác biệt chỉ ở độ trễ
 
@@ -426,7 +426,7 @@ Kết quả **ủng hộ giả thuyết**: chi phí Service của eBPF không đ
 
 <div class="tiny mt-2 muted">
 
-**Giới hạn**: 3 lần/điểm; 1 mức tải; độ trễ gồm ~2.2 ms của app; chưa đo thời gian cập nhật luật; Cilium đo đường socket-LB (chưa đo TC per-packet); 2 cụm riêng (containerd/patch OS khác nhỏ), tải nền đã cân bằng, Tetragon tạm dừng khi đo.
+**Giới hạn**: 3 lần/điểm; 1 mức tải; độ trễ gồm ~2.2 ms của app; chưa đo thời gian cập nhật rule; Cilium đo đường socket-LB (chưa đo TC per-packet); 2 cụm riêng (containerd/patch OS khác nhỏ), tải nền đã cân bằng, Tetragon tạm dừng khi đo.
 
 </div>
 </div>
@@ -470,14 +470,14 @@ transition: slide-up | slide-down
 
 # NetworkPolicy: iptables vs eBPF (E2)
 
-Gói tin chỉ mang **IP**, không mang **label** → mọi hiện thực đều phải dịch *label → thứ kiểm tra được trên gói*:
+Packet chỉ mang **IP**, không mang **label** → mọi hiện thực đều phải dịch *label → thứ kiểm tra được trên packet*:
 
 <PolicyTranslate />
 
 <div class="small">
 <v-clicks>
 
-- **iptables**: chính sách **gắn với IP tạm thời** → Pod tạo/huỷ ⇒ Felix trên **mọi node** sửa ipset; trong lúc trễ: chặn nhầm Pod mới / cho phép nhầm IP tái sử dụng
+- **iptables**: policy **gắn với IP tạm thời** → Pod tạo/huỷ ⇒ Felix trên **mọi node** sửa ipset; trong lúc trễ: chặn nhầm Pod mới / cho phép nhầm IP tái sử dụng
 - **eBPF**: Pod mới cùng label ⇒ identity **đã có**, **policy map giữ nguyên**, chỉ phân phối ipcache (hoặc identity đi trong VNI). Hỗ trợ **L7** qua Envoy (`CiliumNetworkPolicy`)
 
 </v-clicks>
@@ -491,7 +491,7 @@ Gói tin chỉ mang **IP**, không mang **label** → mọi hiện thực đều
 |---|---|---|
 | **Đơn vị nhận diện** | Địa chỉ IP của Pod | Security identity (số) từ label |
 | **Ai tạo ra (user space)** | Felix: selector → danh sách IP | cilium-agent: tập label → identity (`CiliumIdentity`) |
-| **Cấu trúc trong nhân** | ipset + chuỗi `cali-*` | `cilium_policy_*`, `cilium_ipcache` |
+| **Cấu trúc trong kernel** | ipset + chain `cali-*` | `cilium_policy_*`, `cilium_ipcache` |
 | **Khi Pod mới xuất hiện** | <span v-mark.orange="1">Cập nhật ipset trên **mọi node**</span> | <span v-mark.green="2">Chỉ cập nhật ipcache; **policy map giữ nguyên**</span> |
 | **Phạm vi** | L3/L4 | L3/L4 và **L7** (HTTP method/path qua Envoy) |
 | **Công cụ kiểm tra** | `ipset list`, `iptables-save` | `cilium identity list`, `cilium bpf policy get` |
@@ -530,12 +530,12 @@ kubectl apply -f e2/cilium/        # 15 CiliumNetworkPolicy · ns microservices-
 # Mô phỏng frontend bị chiếm quyền (ephemeral container trong Pod frontend)
 kubectl debug -it pod/<frontend> -n microservices-google-demo \
   --image=nicolaka/netshoot --target=server -- bash
-nc -zv -w3 cartservice 7070        # luồng hợp lệ   → succeeded
+nc -zv -w3 cartservice 7070        # flow hợp lệ   → succeeded
 nc -zv -w3 redis-cart 6379         # lateral move   → BLOCK (timeout)
 nc -zv -w3 paymentservice 50051    # bỏ qua Checkout → BLOCK (timeout)
 hubble observe -n microservices-google-demo --verdict DROPPED   # "Policy denied", ai → ai
 
-# Cơ chế trong nhân: Calico ipset vs Cilium identity
+# Cơ chế trong kernel: Calico ipset vs Cilium identity
 ipset list | grep -A3 cali40s      # Calico: label → tập IP
 cilium identity list               # Cilium: label → identity số
 
@@ -556,6 +556,72 @@ transition: slide-up | slide-down
 
 ---
 
+# Tetragon là gì?
+
+<div class="small mb-2">
+
+**Tetragon** = engine **observability & thực thi bảo mật runtime** dựa trên **eBPF** (một phần của Cilium), nhìn ở tầng **syscall · process · file** — khác với NetworkPolicy (chỉ ở tầng mạng).
+
+</div>
+
+<div class="cmp small">
+<div class="card ebpf">
+
+### Gắn vào kernel (eBPF)
+Hook `kprobe · tracepoint · LSM` → thấy:
+- **syscall**, exec/exit **process**
+- **read/write file**, mạng, credential
+
+</div>
+<div class="card ebpf" v-click>
+
+### Xử lý
+- Lọc **ngay trong kernel** theo `TracingPolicy` → chi phí thấp
+- Gắn **ngữ cảnh K8s**: pod, namespace, label, binary
+- **Observe** + tùy chọn **enforce** (`SIGKILL`, `Override -EPERM`)
+
+</div>
+</div>
+
+<div class="small mt-3" v-click>
+
+Trong E3, Tetragon theo dõi hook <span class="hl">`security_file_permission`</span> để bắt việc đọc `serviceaccount/token` — thứ File Inclusion làm **ngay trong PHP worker**. <span class="muted">(Cần kernel có eBPF/BTF; BPF-LSM để enforce.)</span>
+
+</div>
+
+---
+
+# Vì sao iptables không làm được (E3)
+
+<div class="cmp small mt-2">
+<div class="card ipt">
+
+### iptables / Calico
+- Chỉ thấy **packet ở hook mạng** (L3/L4): IP, port, proto
+- **Không** thấy process, syscall hay thao tác đọc file
+- Là **firewall**, không phải bảo mật runtime
+- Muốn observe process/file → phải thêm công cụ khác (`auditd`…), nằm ngoài iptables
+
+</div>
+<div class="card ebpf" v-click>
+
+### Tetragon / eBPF
+- Thấy **syscall · process · file · mạng** + **ngữ cảnh K8s**
+- **Lọc & chặn ngay trong kernel**, không cần sidecar
+- Một `TracingPolicy` áp cho đúng Pod/đường dẫn file
+
+</div>
+</div>
+
+<div class="mt-5 text-center" v-click>
+
+<span class="hl">**Tetragon đòi hỏi eBPF** (kprobe/LSM, BTF)</span> — datapath **iptables/netfilter thuần không cung cấp** instrumentation này.<br/>
+→ Demo E3 chỉ chạy được trên cụm **Cilium/eBPF**; phía iptables **không có công cụ tương đương**.
+
+</div>
+
+---
+
 # Sau khai thác: đọc ServiceAccount token (E3)
 
 <TetragonFlow />
@@ -563,8 +629,8 @@ transition: slide-up | slide-down
 <div class="small mt-2">
 <v-clicks>
 
-- **Command Injection** sinh tiến trình mới → giám sát theo **exec** bắt được ngay
-- **File Inclusion** đọc token **ngay trong PHP worker** có sẵn → giám sát theo tiến trình **bỏ sót** → cần rule theo **đường dẫn file**, không theo tên tiến trình
+- **Command Injection** sinh process mới → giám sát theo **exec** bắt được ngay
+- **File Inclusion** đọc token **ngay trong PHP worker** có sẵn → giám sát theo process **bỏ sót** → cần rule theo **đường dẫn file**, không theo tên process
 - Policy hiện tại ở chế độ <span class="hl">**monitor-only**</span>: ghi nhận, chưa chặn (enforce `Override -EPERM` là tuỳ chọn, cần kernel hỗ trợ)
 
 </v-clicks>
@@ -585,7 +651,7 @@ transition: fade
 ```bash
 # 1. Upload PoC qua trang File Upload của DVWA → hackable/uploads/expoilt.php
 # 2. Kích hoạt qua File Inclusion (LFI): ?page=../../hackable/uploads/expoilt.php
-#    → đọc token NGAY trong PHP worker, không sinh tiến trình mới
+#    → đọc token NGAY trong PHP worker, không sinh process mới
 
 # 3. Rule giám sát đọc file token (hook security_file_permission)
 kubectl apply -f e3/Tetragon/dvwa-token-monitor.yaml
@@ -603,16 +669,16 @@ kubectl exec -n kube-system ds/tetragon -c tetragon -- \
 
 | Tiêu chí | iptables / Calico + kube-proxy | eBPF / Cilium |
 |---|---|---|
-| **Tra cứu Service** | Duyệt tuần tự chuỗi luật, $O(n)$ | BPF hash map, $O(1)$ — <span v-mark.green="1">**E1 xác nhận**</span> |
-| **Cập nhật bảng Service** | Sinh lại & nạp qua `iptables-restore` | Ghi nguyên tử từng phần tử |
+| **Tra cứu Service** | Duyệt tuần tự chain rule, $O(n)$ | BPF hash map, $O(1)$ — <span v-mark.green="1">**E1 xác nhận**</span> |
+| **Cập nhật table Service** | Sinh lại & nạp qua `iptables-restore` | Ghi nguyên tử từng phần tử |
 | **Đường đi trên host** | Netfilter + IP stack host + veth | Redirect trực tiếp tại TC/XDP |
 | **Conntrack** | `nf_conntrack` dùng chung | BPF LRU map riêng |
-| **Mô hình chính sách** | Label → tập IP trong ipset | Label → security identity — <span v-mark.green="3">**E2 xác nhận**</span> |
-| **Đồng bộ chính sách** | Sửa ipset mọi node khi IP đổi | Policy map độc lập IP; chỉ đồng bộ ipcache |
-| **Phạm vi chính sách** | L3/L4 | L3/L4 + L7 (Envoy) |
+| **Mô hình policy** | Label → tập IP trong ipset | Label → security identity — <span v-mark.green="3">**E2 xác nhận**</span> |
+| **Đồng bộ policy** | Sửa ipset mọi node khi IP đổi | Policy map độc lập IP; chỉ đồng bộ ipcache |
+| **Phạm vi policy** | L3/L4 | L3/L4 + L7 (Envoy) |
 | **Chẩn đoán drop** | Bộ đếm, không ngữ cảnh | Hubble: sự kiện có ngữ cảnh K8s |
-| **Bảo mật runtime** | Không thấy syscall | Tetragon: theo dõi & enforce trong nhân — <span v-mark.green="2">**E3 xác nhận**</span> |
-| **Yêu cầu nhân** | Hầu hết mọi phiên bản | ≥ 5.4; ≥ 5.10 cho BPF host routing |
+| **Bảo mật runtime** | Không thấy syscall | Tetragon: theo dõi & enforce trong kernel — <span v-mark.green="2">**E3 xác nhận**</span> |
+| **Yêu cầu kernel** | Hầu hết mọi phiên bản | ≥ 5.4; ≥ 5.10 cho BPF host routing |
 | **Vận hành** | Công cụ quen thuộc, tài liệu nhiều | Cần hiểu eBPF, `cilium`, `bpftool`, `hubble` |
 
 ---
@@ -624,10 +690,10 @@ layout: center
 <div class="small">
 <v-clicks>
 
-- Ở cụm nhỏ, phần cứng phổ thông, khác biệt lý thuyết **đo được rõ ràng**: với 10 000 Service, iptables chậm hơn **2.08×** mỗi kết nối mới, Cilium **không đổi**
-- eBPF tách **chính sách khỏi IP** (identity) và đem lại **quan sát có ngữ cảnh** mạng (Hubble) lẫn **bảo mật runtime** (Tetragon: theo dõi & enforce syscall/file trong nhân) mà iptables không có
-- Đổi lại: yêu cầu nhân mới hơn và đội vận hành phải học công cụ mới
-- **Khuyến nghị**: cụm lớn / nhiều Service / cần chính sách L7 & quan sát → **Cilium eBPF**; cụm nhỏ, nhân cũ, ưu tiên quen thuộc → iptables vẫn chấp nhận được
+- Ở cụm nhỏ, phần cứng phổ thông, khác biệt lý thuyết **đo được rõ ràng**: với 10 000 Service, iptables chậm hơn **2.08×** mỗi connection mới, Cilium **không đổi**
+- eBPF tách **policy khỏi IP** (identity) và đem lại **observability có ngữ cảnh** mạng (Hubble) lẫn **bảo mật runtime** (Tetragon: theo dõi & enforce syscall/file trong kernel) mà iptables không có
+- Đổi lại: yêu cầu kernel mới hơn và đội vận hành phải học công cụ mới
+- **Khuyến nghị**: cụm lớn / nhiều Service / cần policy L7 & observability → **Cilium eBPF**; cụm nhỏ, kernel cũ, ưu tiên quen thuộc → iptables vẫn chấp nhận được
 
 </v-clicks>
 </div>

@@ -25,6 +25,7 @@ Overview, topology and quick start: `README.md`.
 
 - Run: `npm run dev`; build check: `npm run build`; visual check: `npx slidev export --format png --range <n> --output <dir>` and view the PNGs.
 - Node here is 20.x, so Slidev is pinned to **52.20.1** and `vue` to 3.5.44. `.npmrc` (`legacy-peer-deps=true`) and the `markdown-it` ^14 override are required for `npm install`. Don't bump these unless Node ≥ 22.12.
-- Content conventions: slide text in Vietnamese, **diagram labels in English**; diagram-first with minimal text (details stay in the report); diagrams centered and large; demo slides are only a "LIVE DEMO" title plus command cues.
+- Content conventions: slide text in Vietnamese, **diagram labels in English**; **keep IT/technical terms in English even in Vietnamese prose** (process, kernel, packet, connection, policy, rule, chain, table, flow, firewall, observability, load balancing, identity, encapsulation, counter…) — do not translate them; diagram-first with minimal text (details stay in the report); diagrams centered and large; demo slides are only a "LIVE DEMO" title plus command cues.
+- All diagrams are custom Vue SFCs in `components/` (house style: rounded `#374151` boxes, palette blue `#e8eefc` / orange `#ffe9cc` iptables / green `#dcf5dc` eBPF / red `#ffd0d0`, triangle-marker arrows, monospace titles, print-safe animation only). No Mermaid — build new diagrams as components, with a matching built-in legend when colors carry meaning.
 - Scope: direct routing only (no overlay slides), no research-questions slide; framing is Calico/iptables vs Cilium/eBPF.
 - A slide's `transition` applies when leaving it forward. Avoid `v-mark` on text below a Mermaid diagram (it is positioned before the async render); use the `.hl` class instead.

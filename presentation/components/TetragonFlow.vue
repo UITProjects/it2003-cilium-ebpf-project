@@ -55,7 +55,7 @@
   </svg>
 
   <div class="tf-legend">
-    <span class="i"><i class="bx miss"></i> Điểm mù giám sát tiến trình (LFI)</span>
+    <span class="i"><i class="bx miss"></i> Điểm mù giám sát process (LFI)</span>
     <span class="i"><i class="ln ok"></i> Tetragon ghi nhận</span>
     <span class="i"><i class="ln no"></i> Enforce: từ chối (tùy chọn)</span>
   </div>
