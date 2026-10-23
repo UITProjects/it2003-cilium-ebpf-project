@@ -1,0 +1,38 @@
+# Optional example: observe only app=dvwa Pods in namespace dvwa.
+# No enforcement action. Validate resolved paths against actual file events.
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicyNamespaced
+metadata:
+  name: dvwa-token-monitor-scoped
+  namespace: dvwa
+spec:
+  podSelector:
+    matchLabels:
+      app: dvwa
+  kprobes:
+    - call: security_file_permission
+      syscall: false
+      return: true
+      args:
+        - index: 0
+          type: file
+        - index: 1
+          type: int
+      returnArg:
+        index: 0
+        type: int
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: Prefix
+              values:
+                - /var/run/secrets/kubernetes.io/serviceaccount/
+                - /run/secrets/kubernetes.io/serviceaccount/
+            - index: 0
+              operator: Postfix
+              values:
+                - /token
+            - index: 1
+              operator: Mask
+              values:
+                - "4"

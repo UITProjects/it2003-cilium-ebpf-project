@@ -1,0 +1,32 @@
+# Selected workload: app=recommendationservice, ServiceAccount=recommendationservice (verified against Deployment).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: boutique-recommendationservice
+  namespace: microservices-google-demo
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:app: recommendationservice
+      k8s:io.cilium.k8s.policy.serviceaccount: recommendationservice
+      k8s:io.kubernetes.pod.namespace: microservices-google-demo
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:app: frontend
+            k8s:io.cilium.k8s.policy.serviceaccount: frontend
+            k8s:io.kubernetes.pod.namespace: microservices-google-demo
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:app: productcatalogservice
+            k8s:io.cilium.k8s.policy.serviceaccount: productcatalogservice
+            k8s:io.kubernetes.pod.namespace: microservices-google-demo
+      toPorts:
+        - ports:
+            - port: "3550"
+              protocol: TCP
