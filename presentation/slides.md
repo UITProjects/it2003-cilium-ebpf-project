@@ -66,7 +66,7 @@ Học kì II, 2025–2026
 
 4. **E1** – Hiệu năng Service theo quy mô · <span class="demo-badge">DEMO</span>
 5. **E2** – Thực thi NetworkPolicy · <span class="demo-badge">DEMO</span>
-6. **E3** – Chẩn đoán gói tin bị drop · <span class="demo-badge">DEMO</span>
+6. **E3** – Bảo mật runtime với Tetragon · <span class="demo-badge">DEMO</span>
 7. **Ma trận quyết định & kết luận**
 
 </div>
@@ -162,17 +162,7 @@ transition: slide-up | slide-down
 
 # Netfilter / iptables & conntrack
 
-```mermaid {scale: 0.9}
-flowchart LR
-  PRE[NIC / veth →<br/>PREROUTING<br/>raw · mangle · nat] --> R{routing}
-  R -->|local| INP[INPUT]
-  INP -->|local process| OUT[OUTPUT]
-  R -->|forward| FWD[FORWARD<br/>filter]
-  OUT --> POST[POSTROUTING<br/>nat<br/>→ NIC / veth]
-  FWD --> POST
-  classDef nf fill:#ffe9cc,stroke:#374151
-  class PRE,INP,FWD,OUT,POST nf
-```
+<NetfilterFlow />
 
 <v-clicks>
 
@@ -186,20 +176,7 @@ flowchart LR
 
 # eBPF: máy ảo an toàn trong nhân Linux
 
-```mermaid {scale: 0.78}
-flowchart TB
-  subgraph LOAD[Load]
-    direction LR
-    C[restricted C → bytecode<br/>clang/LLVM] -->|"bpf() syscall"| V[Verifier<br/>safe, always terminates] --> J[JIT → native code]
-  end
-  subgraph RUN[Run]
-    direction LR
-    H[Kernel hook<br/>XDP · TC · socket · kprobe] <-->|read/write| M[(BPF maps)] <--> U[User space<br/>cilium-agent]
-  end
-  LOAD -->|attach to hook| RUN
-  classDef b fill:#dcf5dc,stroke:#374151
-  class V,J,H,M b
-```
+<EbpfVM />
 
 <div class="cmp small" v-click>
 <div>
@@ -495,27 +472,7 @@ transition: slide-up | slide-down
 
 Gói tin chỉ mang **IP**, không mang **label** → mọi hiện thực đều phải dịch *label → thứ kiểm tra được trên gói*:
 
-```mermaid {scale: 0.86}
-flowchart LR
-  subgraph S1[1 · Control plane - user space]
-    F[Felix: selector → list of Pod IPs]
-    A[cilium-agent: label set → numeric identity<br/>app=frontend → 2210]
-  end
-  subgraph S2[2 · Kernel state]
-    I[ipset cali40s:… +<br/>chains cali-fw / cali-pi]
-    P[(cilium_policy_* +<br/>cilium_ipcache)]
-  end
-  subgraph S3[3 · Per-packet check]
-    X[match-set src IP]
-    Y["lookup (identity, port, proto, dir) O(1)"]
-  end
-  F --> I --> X
-  A --> P --> Y
-  classDef ipt fill:#ffe9cc,stroke:#374151
-  classDef bpf fill:#dcf5dc,stroke:#374151
-  class F,I,X ipt
-  class A,P,Y bpf
-```
+<PolicyTranslate />
 
 <div class="small">
 <v-clicks>
@@ -540,6 +497,21 @@ flowchart LR
 | **Công cụ kiểm tra** | `ipset list`, `iptables-save` | `cilium identity list`, `cilium bpf policy get` |
 
 ---
+
+# Phân đoạn mạng Online Boutique: chặn lateral movement (E2)
+
+<PolicySegment />
+
+<div class="small mt-2">
+<v-clicks>
+
+- **Default deny** cả ingress lẫn egress → chỉ đường tới Redis **qua Cart**, tới Payment **qua Checkout**; lối tắt trực tiếp bị từ chối
+- Frontend bị chiếm quyền chỉ chạm được allowlist → **thu hẹp blast radius**; nhận diện theo <span class="hl">**security identity**</span> (label), không theo IP
+
+</v-clicks>
+</div>
+
+---
 layout: center
 class: text-center
 transition: fade
@@ -547,23 +519,31 @@ transition: fade
 
 <span class="demo-badge" v-motion :initial="{ scale: 0.4, opacity: 0 }" :enter="{ scale: 1, opacity: 1, transition: { type: 'spring', stiffness: 260, damping: 14 } }">LIVE DEMO</span>
 
-# E2 – NetworkPolicy trong nhân
+# E2 – Chặn lateral movement & reverse shell
 
 <div class="text-left inline-block small mt-4">
 
 ```bash
-kubectl apply -f e2/manifests/dvwa.yaml       # ứng dụng mục tiêu (LB 192.168.40.140)
+# Nền: default-deny + least-privilege cho Online Boutique (Cilium)
+kubectl apply -f e2/cilium/        # 15 CiliumNetworkPolicy · ns microservices-google-demo
 
-# iptables / Calico: label → IP
-ipset list | grep -A5 cali40s                 # IP của Pod khớp selector
-iptables-save | grep cali-pi                  # chuỗi chính sách
+# Mô phỏng frontend bị chiếm quyền (ephemeral container trong Pod frontend)
+kubectl debug -it pod/<frontend> -n microservices-google-demo \
+  --image=nicolaka/netshoot --target=server -- bash
+nc -zv -w3 cartservice 7070        # luồng hợp lệ   → succeeded
+nc -zv -w3 redis-cart 6379         # lateral move   → BLOCK (timeout)
+nc -zv -w3 paymentservice 50051    # bỏ qua Checkout → BLOCK (timeout)
+hubble observe -n microservices-google-demo --verdict DROPPED   # "Policy denied", ai → ai
 
-# eBPF / Cilium: label → identity
-cilium identity list                          # tập label → identity số
-cilium bpf policy get --all                   # policy map của endpoint
+# Cơ chế trong nhân: Calico ipset vs Cilium identity
+ipset list | grep -A3 cali40s      # Calico: label → tập IP
+cilium identity list               # Cilium: label → identity số
 
-kubectl scale deploy/dvwa -n dvwa --replicas=3   # Pod mới: ipset đổi, policy map giữ nguyên?
+# Bridge → E3: chặn callback reverse shell từ DVWA
+kubectl apply -f e2/case_reverse_shell.yaml   # egress chỉ web/DNS/ping; chặn TCP 4444
 ```
+
+<div class="tiny muted mt-1">Timeout đơn thuần chưa đủ — đối chiếu flow <code>Policy denied</code> trong Hubble.</div>
 
 </div>
 
@@ -572,41 +552,22 @@ layout: section
 transition: slide-up | slide-down
 ---
 
-# E3 – Chẩn đoán lưu lượng bị drop
+# E3 – Bảo mật runtime với Tetragon
 
 ---
 
-# Quan sát & chẩn đoán lưu lượng bị drop (E3)
+# Sau khai thác: đọc ServiceAccount token (E3)
 
-<div class="cmp small">
-<div class="card ipt">
+<TetragonFlow />
 
-### iptables / Calico
-- Gói dừng ở luật `DROP` → nhân chỉ tăng **bộ đếm packet/byte** (`iptables -L -n -v`)
-- **Không** có Pod nguồn, namespace, label, tên policy
-- `LOG`/`NFLOG`: phải sửa luật, tự map IP → Pod
-- Thực tế: `calicoctl node diags` + đối chiếu thời gian với lịch sử cấp IP
+<div class="small mt-2">
+<v-clicks>
 
-</div>
-<div class="card ebpf" v-click>
+- **Command Injection** sinh tiến trình mới → giám sát theo **exec** bắt được ngay
+- **File Inclusion** đọc token **ngay trong PHP worker** có sẵn → giám sát theo tiến trình **bỏ sót** → cần rule theo **đường dẫn file**, không theo tên tiến trình
+- Policy hiện tại ở chế độ <span class="hl">**monitor-only**</span>: ghi nhận, chưa chặn (enforce `Override -EPERM` là tuỳ chọn, cần kernel hỗ trợ)
 
-### Cilium Hubble
-- Datapath phát sự kiện (forwarded, **dropped + lý do**, policy verdict) qua perf/ring buffer
-- **Hubble** (trong agent) gắn ngữ cảnh K8s: Pod, ns, label, identity, Service
-- `hubble observe --verdict DROPPED` → biết ngay *ai → ai, vì sao* (`Policy denied`)
-- **Hubble UI**: service map, đánh dấu kết nối bị chặn, không cần sidecar
-
-</div>
-</div>
-
-<div v-click>
-
-```mermaid {scale: 0.74}
-flowchart LR
-  D[eBPF datapath<br/>TC / XDP] -->|perf / ring buffer| H[Hubble in cilium-agent<br/>+ K8s context] -->|gRPC| R[Hubble Relay<br/>cluster-wide] --> C[hubble CLI / Hubble UI]
-  T[Tetragon: kprobe · tracepoint · LSM<br/>syscall, process, file; in-kernel filter & enforce] -.-> H
-```
-
+</v-clicks>
 </div>
 
 ---
@@ -617,20 +578,22 @@ transition: fade
 
 <span class="demo-badge" v-motion :initial="{ scale: 0.4, opacity: 0 }" :enter="{ scale: 1, opacity: 1, transition: { type: 'spring', stiffness: 260, damping: 14 } }">LIVE DEMO</span>
 
-# E3 – Vì sao kết nối bị chặn?
+# E3 – Tetragon bắt hành vi sau khai thác
 
 <div class="text-left inline-block small mt-4">
 
 ```bash
-# iptables / Calico: chỉ có bộ đếm
-iptables -L -n -v | grep -i drop
+# 1. Upload PoC qua trang File Upload của DVWA → hackable/uploads/expoilt.php
+# 2. Kích hoạt qua File Inclusion (LFI): ?page=../../hackable/uploads/expoilt.php
+#    → đọc token NGAY trong PHP worker, không sinh tiến trình mới
 
-# Cilium Hubble: luồng sự kiện có ngữ cảnh K8s
-hubble observe --verdict DROPPED -n dvwa
-hubble observe --to-pod dvwa/<pod> --verdict DROPPED -o compact
+# 3. Rule giám sát đọc file token (hook security_file_permission)
+kubectl apply -f e3/Tetragon/dvwa-token-monitor.yaml
+kubectl exec -n kube-system ds/tetragon -c tetragon -- \
+  tetra getevents -o compact        # sự kiện đọc .../serviceaccount/token
 ```
 
-**Hubble UI:** `http://192.168.40.132` (qua OpenVPN)
+**PoC** `expoilt.php`: đọc token → kiểm tra danh tính & quyền Kubernetes API
 
 </div>
 
@@ -644,11 +607,11 @@ hubble observe --to-pod dvwa/<pod> --verdict DROPPED -o compact
 | **Cập nhật bảng Service** | Sinh lại & nạp qua `iptables-restore` | Ghi nguyên tử từng phần tử |
 | **Đường đi trên host** | Netfilter + IP stack host + veth | Redirect trực tiếp tại TC/XDP |
 | **Conntrack** | `nf_conntrack` dùng chung | BPF LRU map riêng |
-| **Mô hình chính sách** | Label → tập IP trong ipset | Label → security identity |
+| **Mô hình chính sách** | Label → tập IP trong ipset | Label → security identity — <span v-mark.green="3">**E2 xác nhận**</span> |
 | **Đồng bộ chính sách** | Sửa ipset mọi node khi IP đổi | Policy map độc lập IP; chỉ đồng bộ ipcache |
 | **Phạm vi chính sách** | L3/L4 | L3/L4 + L7 (Envoy) |
 | **Chẩn đoán drop** | Bộ đếm, không ngữ cảnh | Hubble: sự kiện có ngữ cảnh K8s |
-| **Bảo mật runtime** | Không thấy syscall | Tetragon: theo dõi & enforce trong nhân |
+| **Bảo mật runtime** | Không thấy syscall | Tetragon: theo dõi & enforce trong nhân — <span v-mark.green="2">**E3 xác nhận**</span> |
 | **Yêu cầu nhân** | Hầu hết mọi phiên bản | ≥ 5.4; ≥ 5.10 cho BPF host routing |
 | **Vận hành** | Công cụ quen thuộc, tài liệu nhiều | Cần hiểu eBPF, `cilium`, `bpftool`, `hubble` |
 
@@ -662,7 +625,7 @@ layout: center
 <v-clicks>
 
 - Ở cụm nhỏ, phần cứng phổ thông, khác biệt lý thuyết **đo được rõ ràng**: với 10 000 Service, iptables chậm hơn **2.08×** mỗi kết nối mới, Cilium **không đổi**
-- eBPF tách **chính sách khỏi IP** (identity) và đem lại **quan sát có ngữ cảnh** (Hubble) mà iptables không có
+- eBPF tách **chính sách khỏi IP** (identity) và đem lại **quan sát có ngữ cảnh** mạng (Hubble) lẫn **bảo mật runtime** (Tetragon: theo dõi & enforce syscall/file trong nhân) mà iptables không có
 - Đổi lại: yêu cầu nhân mới hơn và đội vận hành phải học công cụ mới
 - **Khuyến nghị**: cụm lớn / nhiều Service / cần chính sách L7 & quan sát → **Cilium eBPF**; cụm nhỏ, nhân cũ, ưu tiên quen thuộc → iptables vẫn chấp nhận được
 
