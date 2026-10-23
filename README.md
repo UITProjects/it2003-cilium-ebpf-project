@@ -57,17 +57,17 @@ flowchart LR
 
 ```bash
 git submodule update --init                # kubespray, microservices-demo, docs-latex
-python3 -m venv .venv && . .venv/bin/activate
-pip install -r requirements.txt            # matplotlib, for plotting E1
+python3 -m venv e1/.venv && e1/.venv/bin/pip install -r e1/requirements.txt   # E1 scripts
 ```
 
 With `kubectl` contexts for both clusters (API through Proxmox DNAT: `:2443` Cilium, `:2444` Calico):
 
 ```bash
 cd e1
-./scripts/run-e1-calico.sh                 # Setup A, context it2003@calico (KUBE_CONTEXT=...)
-./scripts/run-e1-cilium.sh cilium          # Setup B, current kubectl context
-python3 scripts/plot_e1.py results/e1.csv results/e1.png
+.venv/bin/python scripts/main.py           # interactive: pick cluster, quick test / full run / demo / charts
+.venv/bin/python scripts/run-e1.py run iptables   # or without prompts: Setup A (context it2003@calico)
+.venv/bin/python scripts/run-e1.py run cilium     #                     Setup B (context it2003@cilium)
+.venv/bin/python scripts/collect-and-draw-chart.py results/e1.csv
 
 kubectl apply -f e2/manifests/dvwa.yaml    # E2 target app on the Cilium cluster (LB 192.168.40.140)
 ```
@@ -116,7 +116,7 @@ npm peer-dependency errors. Keep them unless Node is upgraded.
 | `presentation/` | Slidev slides for the talk (`slides.md`, diagram components in `components/`) |
 | `.agents/skills/slidev/` | Slidev agent skill for AI coding assistants (`npx skills add slidevjs/slidev`) |
 | `microservices-demo/` | git submodule: [Google Online Boutique](https://github.com/GoogleCloudPlatform/microservices-demo), used as a realistic workload |
-| `requirements.txt` | Python dependencies for the plots |
+| `e1/requirements.txt` | Python dependencies for the E1 scripts (use `e1/.venv`) |
 
 ## Requirements
 

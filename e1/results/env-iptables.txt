@@ -1,12 +1,12 @@
-# setup=iptables  context=it2003@calico  date=2026-09-29T01:06:48Z  server=it-2003-ubuntu2404-4  client=it-2003-ubuntu2404-5  ssh_target=192.168.50.162
+# setup=iptables  context=it2003@calico  date=2026-10-22T15:23:13Z  server=it-2003-ubuntu2404-4  client=it-2003-ubuntu2404-5  ssh_target=192.168.50.162
 Client Version: v1.32.13
 Kustomize Version: v5.5.0
 Server Version: v1.35.8
 WARNING: version difference between client (1.32) and server (1.35) exceeds the supported minor version skew of +/-1
 NAME                   STATUS   ROLES           AGE   VERSION   INTERNAL-IP      EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION      CONTAINER-RUNTIME
-it-2003-ubuntu2404-3   Ready    control-plane   41h   v1.35.8   192.168.50.160   <none>        Ubuntu 24.04.5 LTS   6.8.0-142-generic   containerd://2.3.5
-it-2003-ubuntu2404-4   Ready    <none>          41h   v1.35.8   192.168.50.161   <none>        Ubuntu 24.04.5 LTS   6.8.0-142-generic   containerd://2.3.5
-it-2003-ubuntu2404-5   Ready    <none>          41h   v1.35.8   192.168.50.162   <none>        Ubuntu 24.04.5 LTS   6.8.0-142-generic   containerd://2.3.5
+it-2003-ubuntu2404-3   Ready    control-plane   25d   v1.35.8   192.168.50.160   <none>        Ubuntu 24.04.5 LTS   6.8.0-142-generic   containerd://2.3.5
+it-2003-ubuntu2404-4   Ready    <none>          25d   v1.35.8   192.168.50.161   <none>        Ubuntu 24.04.5 LTS   6.8.0-142-generic   containerd://2.3.5
+it-2003-ubuntu2404-5   Ready    <none>          25d   v1.35.8   192.168.50.162   <none>        Ubuntu 24.04.5 LTS   6.8.0-142-generic   containerd://2.3.5
 ## kube-proxy config
 apiVersion: kubeproxy.config.k8s.io/v1alpha1
 bindAddress: 0.0.0.0
@@ -58,7 +58,7 @@ logging:
     text:
       infoBufferSize: "0"
   verbosity: 0
-metricsBindAddress: 127.0.0.1:10249
+metricsBindAddress: 0.0.0.0:10249
 mode: iptables
 nftables:
   masqueradeAll: false
@@ -78,7 +78,7 @@ winkernel:
 ## calico images
 quay.io/calico/cni:v3.31.7 quay.io/calico/cni:v3.31.7 quay.io/calico/node:v3.31.7 quay.io/calico/node:v3.31.7
 ## calico installation (operator)
-
+error: the server doesn't have a resource type "installation"
 ## felix configuration
 apiVersion: crd.projectcalico.org/v1
 kind: FelixConfiguration
@@ -104,4 +104,4 @@ spec:
   wireguardEnabled: false
 ## ip pools
 NAME           AGE
-default-pool   41h
+default-pool   25d

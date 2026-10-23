@@ -393,6 +393,7 @@ iptables duyệt `KUBE-SERVICES` tuần tự → độ trễ **tăng theo N**; C
 - 200 req/s · 4 kết nối · 30 s · warm-up 5 s
 - Chờ EndpointSlice + số luật ổn định + 20 s rồi mới đo
 - 3 lần / N → **36 lần chạy**, kích thước bảng đọc trên node client (`iptables-save -t nat`, `cilium-dbg bpf lb list`)
+- Tải nền giống nhau trên 2 cụm (Prometheus, Loki, Alloy, metrics-server); Tetragon tạm dừng khi đo
 
 </div>
 </div>
@@ -401,15 +402,27 @@ iptables duyệt `KUBE-SERVICES` tuần tự → độ trễ **tăng theo N**; C
 
 # E1: kết quả
 
-<img src="/e1.png" class="w-full" v-motion :initial="{ y: 40, opacity: 0 }" :enter="{ y: 0, opacity: 1, transition: { duration: 600 } }" />
+<img src="/e1-hero.png" class="mx-auto" style="max-height:335px" v-motion :initial="{ y: 40, opacity: 0 }" :enter="{ y: 0, opacity: 1, transition: { duration: 600 } }" />
 
 <div v-click>
 
 | N Service | Bảng iptables | Bảng Cilium | p50 iptables (ms) | p50 Cilium (ms) | p99 ipt / cil (ms) | p50 ipt/cil |
 |---:|---:|---:|---:|---:|---:|---:|
-| 100 | 1 150 | 646 | 2.36 | 2.33 | 3.82 / 5.34 | 1.01 |
-| 4 060 | 44 710 | 20 446 | 3.32 | 2.25 | 5.37 / 5.95 | 1.48 |
-| 10 000 | 110 050 | 50 146 | **4.74** | **2.25** | 7.40 / 4.80 | <span v-mark.circle.red="2">**2.11**</span> |
+| 100 | 1 303 | 664 | 2.33 | 2.48 | 4.28 / 6.59 | 0.94 |
+| 4 060 | 44 863 | 20 464 | 3.31 | 2.36 | 6.08 / 5.03 | 1.40 |
+| 10 000 | 110 203 | 50 164 | **4.93** | **2.37** | 9.93 / 4.96 | <span v-mark.circle.red="2">**2.08**</span> |
+
+</div>
+
+---
+
+# E1: toàn bộ phân phối độ trễ
+
+<img src="/e1-cdf.png" class="w-full" v-motion :initial="{ y: 40, opacity: 0 }" :enter="{ y: 0, opacity: 1, transition: { duration: 600 } }" />
+
+<div v-click class="text-center mt-2">
+
+<span class="hl">iptables: cả đường dịch phải (+2.6 ms ở trung vị); Cilium: hai đường trùng nhau</span>
 
 </div>
 
@@ -421,10 +434,10 @@ iptables duyệt `KUBE-SERVICES` tuần tự → độ trễ **tăng theo N**; C
 <div>
 <v-clicks>
 
-- **Cilium phẳng**: p50 2.33 → 2.25 ms (100 → 10 000 Service), độ dốc ≈ −0.007 ms / 1 000 Service, trong biên dao động
-- **iptables tuyến tính** ($r = 0.995$): +0.23 ms / 1 000 Service; p50 tăng **+101%**; ở 10 000 Service **chậm 2.11×**, +2.49 ms mỗi kết nối mới
-- **Cách tra cứu quyết định, không phải kích thước bảng**: Cilium 50 146 entry → 2.25 ms; iptables 44 710 luật → 3.32 ms
-- **p99**: iptables đuôi ngắn hơn ở quy mô nhỏ, hai đường **cắt nhau ≈ 6 000 Service**
+- **Cilium phẳng**: p50 2.48 → 2.37 ms (100 → 10 000 Service), độ dốc ≈ −0.016 ms / 1 000 Service, trong biên dao động
+- **iptables tuyến tính** ($r = 0.999$): +0.26 ms / 1 000 Service; p50 tăng **+112%**; ở 10 000 Service **chậm 2.08×**, +2.56 ms mỗi kết nối mới
+- **Cách tra cứu quyết định, không phải kích thước bảng**: Cilium 50 164 entry → 2.37 ms; iptables 44 863 luật → 3.31 ms
+- **p99**: iptables đuôi ngắn hơn ở quy mô nhỏ, hai đường **cắt nhau ≈ 3 000 Service**
 - 216 000 request, **0 lỗi**: khác biệt chỉ ở độ trễ
 
 </v-clicks>
@@ -436,7 +449,7 @@ Kết quả **ủng hộ giả thuyết**: chi phí Service của eBPF không đ
 
 <div class="tiny mt-2 muted">
 
-**Giới hạn**: 3 lần/điểm; 1 mức tải; độ trễ gồm ~2.2 ms của app; chưa đo thời gian cập nhật luật; Cilium đo đường socket-LB (chưa đo TC per-packet); 2 cụm riêng (containerd/patch OS khác nhỏ).
+**Giới hạn**: 3 lần/điểm; 1 mức tải; độ trễ gồm ~2.2 ms của app; chưa đo thời gian cập nhật luật; Cilium đo đường socket-LB (chưa đo TC per-packet); 2 cụm riêng (containerd/patch OS khác nhỏ), tải nền đã cân bằng, Tetragon tạm dừng khi đo.
 
 </div>
 </div>
@@ -456,15 +469,15 @@ transition: fade
 
 ```bash
 # Một Service được biểu diễn thế nào trên node client
-./e1/scripts/show-service.sh iptables     # KUBE-SERVICES → KUBE-SVC → KUBE-SEP (DNAT)
-./e1/scripts/show-service.sh cilium       # frontend + backend trong LB map
+./e1/scripts/run-e1.py show iptables     # KUBE-SERVICES → KUBE-SVC → KUBE-SEP (DNAT)
+./e1/scripts/run-e1.py show cilium       # frontend + backend trong LB map
 
 # Kích thước datapath
 iptables-save -t nat | wc -l              # cụm Calico
 cilium-dbg bpf lb list | wc -l            # cụm Cilium
 
 # Chạy nhanh 1 vòng đo
-CSV=results/quick.csv SIZES="10 100" RUNS=1 ./e1/scripts/run-e1-cilium.sh cilium
+./e1/scripts/run-e1.py run cilium --quick
 ```
 
 </div>
@@ -648,7 +661,7 @@ layout: center
 <div class="small">
 <v-clicks>
 
-- Ở cụm nhỏ, phần cứng phổ thông, khác biệt lý thuyết **đo được rõ ràng**: với 10 000 Service, iptables chậm hơn **2.11×** mỗi kết nối mới, Cilium **không đổi**
+- Ở cụm nhỏ, phần cứng phổ thông, khác biệt lý thuyết **đo được rõ ràng**: với 10 000 Service, iptables chậm hơn **2.08×** mỗi kết nối mới, Cilium **không đổi**
 - eBPF tách **chính sách khỏi IP** (identity) và đem lại **quan sát có ngữ cảnh** (Hubble) mà iptables không có
 - Đổi lại: yêu cầu nhân mới hơn và đội vận hành phải học công cụ mới
 - **Khuyến nghị**: cụm lớn / nhiều Service / cần chính sách L7 & quan sát → **Cilium eBPF**; cụm nhỏ, nhân cũ, ưu tiên quen thuộc → iptables vẫn chấp nhận được
