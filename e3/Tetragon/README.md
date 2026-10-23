@@ -1,40 +1,43 @@
 # Tetragon: kiểm soát hành vi sau khi ứng dụng bị khai thác
 
-## 1. Khi chưa có Tetragon
+**Mục tiêu demo:** sau khi DVWA bị khai thác, kẻ tấn công đọc ServiceAccount token
+của Pod. Cho thấy giám sát theo tiến trình **bỏ sót** luồng File Inclusion, và vì sao
+cần rule theo **đường dẫn file** (hook `security_file_permission`).
 
-Nếu ứng dụng có lỗ hổng và tiến trình ứng dụng có quyền đọc file, kẻ tấn công có thể đọc thông tin nhạy cảm như ServiceAccount token. Khi chưa có giám sát runtime, hành vi này khó được phát hiện hơn.
+## Điểm mấu chốt
 
-![Luồng đọc thông tin khi chưa có Tetragon](assets/flow-without-tetragon.png)
+- **Command Injection** tạo tiến trình mới (`sh`/`cat`/`curl`) → giám sát theo exec bắt được.
+- **File Inclusion (LFI)** đọc token **ngay trong PHP worker có sẵn**, không sinh tiến trình
+  mới → giám sát theo tiến trình bỏ sót. Với app PHP, việc đọc do PHP worker thực hiện,
+  không phải nginx → phải kiểm soát theo **thao tác đọc file**, không theo tên tiến trình.
 
-## 2. Command Injection
+![Chưa có Tetragon](assets/flow-without-tetragon.png)
+![File Inclusion](assets/flow-file-inclusion.png)
 
-Kẻ tấn công lợi dụng ứng dụng để chạy lệnh, ví dụ tạo tiến trình `sh`, `cat` hoặc `curl`.
+## Demo
 
-![Luồng Command Injection: tạo tiến trình và Tetragon ghi nhận](assets/flow-command-injection.png)
+```bash
+# 1. Upload PoC qua trang File Upload của DVWA → hackable/uploads/expoilt.php
+# 2. Kích hoạt qua File Inclusion (LFI): ?page=../../hackable/uploads/expoilt.php
+#    → đọc token NGAY trong PHP worker, không sinh tiến trình mới
 
-Tetragon có thể ghi nhận tiến trình được thực thi. Muốn chặn, cần thêm rule enforcement phù hợp; chỉ có log chưa có nghĩa lệnh đã bị chặn.
+# 3. Rule giám sát đọc file token (hook security_file_permission)
+kubectl apply -f dvwa-token-monitor.yaml
+kubectl exec -n kube-system ds/tetragon -c tetragon -- \
+  tetra getevents -o compact        # sự kiện đọc .../serviceaccount/token
+```
 
-## 3. File Inclusion
+Nhánh xanh trong hình là ghi nhận sự kiện; nhánh đỏ nét đứt là enforcement tuỳ chọn
+(cần rule và runtime hỗ trợ). Hình minh hoạ luồng xử lý, không phải kết quả chặn đã xác minh.
 
-Kẻ tấn công lợi dụng chức năng include/đọc file của ứng dụng. Việc đọc có thể diễn ra ngay trong tiến trình web/PHP đang chạy sẵn, không tạo shell hay tiến trình mới.
-
-![Luồng File Inclusion: tiến trình có sẵn đọc file và rule kiểm soát file access](assets/flow-file-inclusion.png)
-
-Không nên mặc định mọi lần đọc đều do nginx: với ứng dụng PHP, việc đọc thường do PHP worker hoặc tiến trình web chạy PHP thực hiện.
-
-Vì vậy cần **rule kiểm soát đọc file**, thay vì chỉ kiểm tra tên tiến trình:
-
-Ví dụ theo dõi việc đọc ServiceAccount token qua hook `security_file_permission`. Rule cần chọn đúng namespace/Pod, đường dẫn file và thao tác đọc.
-
-Trong các hình, nhánh xanh là ghi nhận sự kiện; nhánh đỏ nét đứt là enforcement tùy chọn, cần rule và hỗ trợ runtime phù hợp. Các hình minh họa luồng xử lý, không phải kết quả chặn đã được xác minh trên cluster.
-
-## 4. Các rule trong thư mục này
+## File trong thư mục
 
 | File | Tác dụng |
 |---|---|
 | [dvwa-token-monitor.yaml](dvwa-token-monitor.yaml) | Bản hiện có: ghi nhận thao tác đọc file, chưa chặn |
 | [examples/dvwa-token-monitor-scoped.yaml](examples/dvwa-token-monitor-scoped.yaml) | Mẫu theo dõi đọc token riêng cho Pod DVWA |
 | [examples/dvwa-token-enforce.yaml](examples/dvwa-token-enforce.yaml) | Mẫu từ chối đọc token bằng `Override -13`, cần kernel hỗ trợ và kiểm thử trước |
-| [expoilt.php](expoilt.php) | PoC đọc token, kiểm tra danh tính và quyền Kubernetes API |
+| [expoilt.php](expoilt.php) | PoC đọc token, kiểm tra danh tính & quyền Kubernetes API |
 
-**Trạng thái đã kiểm tra:** các policy hiện có đang ở `monitor_only`. Chưa có bằng chứng Command Injection hoặc đọc token đã bị Tetragon chặn. Hai mẫu trong `examples/` chưa được triển khai.
+**Trạng thái:** các policy đang ở `monitor_only`; chưa có bằng chứng Command Injection
+hoặc đọc token đã bị Tetragon chặn. Hai mẫu trong `examples/` chưa được triển khai.
