@@ -64,10 +64,10 @@ Học kì II, 2025–2026
 </div>
 <div v-motion :initial="{ x: 40, opacity: 0 }" :enter="{ x: 0, opacity: 1, transition: { duration: 600, delay: 200 } }">
 
-4. **E1** – Hiệu năng Service theo quy mô · <span class="demo-badge">DEMO</span>
+4. **E1** – Hiệu năng Service theo quy mô
 5. **E2** – Thực thi NetworkPolicy · <span class="demo-badge">DEMO</span>
 6. **E3** – Bảo mật runtime với Tetragon · <span class="demo-badge">DEMO</span>
-7. **Ma trận quyết định & kết luận**
+7. **Kết luận**
 
 </div>
 </div>
@@ -279,30 +279,6 @@ transition: slide-up | slide-down
 </div>
 
 ---
-
-# Cilium kube-proxy replacement (KPR)
-
-<div class="cmp small">
-<div>
-
-- Service/backend trong **BPF hash map** → tra cứu theo (VIP, port, proto) **$O(1)$**
-- **Socket-level LB**: hook `connect()` dịch ClusterIP → backend ngay ở socket, không NAT từng packet
-- NodePort/LoadBalancer: xử lý tại **TC / XDP**
-
-</div>
-<div>
-
-- **Cập nhật gia tăng**: chỉ ghi phần tử thay đổi, nguyên tử
-- **conntrack riêng**: `cilium_ct4_global` (BPF LRU) thay `nf_conntrack`
-
-</div>
-</div>
-
-<div class="mt-6" v-click>
-<LookupCompare />
-</div>
-
----
 layout: section
 transition: slide-up | slide-down
 ---
@@ -352,6 +328,12 @@ transition: slide-up | slide-down
 
 # E1: thiết lập đo
 
+<div class="text-center mb-4">
+
+<span class="hl">**N** = số Service trong cụm, biến duy nhất thay đổi giữa các lần đo</span>
+
+</div>
+
 <div class="cmp small">
 <div>
 
@@ -359,7 +341,7 @@ transition: slide-up | slide-down
 iptables duyệt `KUBE-SERVICES` tuần tự → độ trễ **tăng theo N**; Cilium tra hash map → **không đổi**.
 
 ### Tải nền
-- $N \in \{100;\ 2080;\ 4060;\ 6040;\ 8020;\ 10000\}$ Service giả
+- Tạo $N \in \{100;\ 2080;\ 4060;\ 6040;\ 8020;\ 10000\}$ Service giả
 - Mỗi Service → 3 Pod `pause` → ~**11 rule nat** (iptables) / ~**5 dòng** LB map (Cilium)
 
 </div>
@@ -373,6 +355,18 @@ iptables duyệt `KUBE-SERVICES` tuần tự → độ trễ **tăng theo N**; C
 - Tải nền giống nhau trên 2 cụm (Prometheus, Loki, Alloy, metrics-server); Tetragon tạm dừng khi đo
 
 </div>
+</div>
+
+---
+
+# E1: cách tính kết quả
+
+<div class="mt-24"><E1Method /></div>
+
+<div v-click class="text-center mt-10">
+
+<span class="hl">p50 = latency trung vị của 1 connection mới; p99 = đuôi chậm</span>
+
 </div>
 
 ---
@@ -400,62 +394,6 @@ iptables duyệt `KUBE-SERVICES` tuần tự → độ trễ **tăng theo N**; C
 <div v-click class="text-center mt-2">
 
 <span class="hl">iptables: cả đường dịch phải (+2.6 ms ở trung vị); Cilium: hai đường trùng nhau</span>
-
-</div>
-
----
-
-# E1: nhận xét & đánh giá
-
-<div class="cmp small">
-<div>
-<v-clicks>
-
-- **Cilium phẳng**: p50 2.48 → 2.37 ms (100 → 10 000 Service), độ dốc ≈ −0.016 ms / 1 000 Service, trong biên dao động
-- **iptables tuyến tính** ($r = 0.999$): +0.26 ms / 1 000 Service; p50 tăng **+112%**; ở 10 000 Service **chậm 2.08×**, +2.56 ms mỗi connection mới
-- **Cách tra cứu quyết định, không phải kích thước table**: Cilium 50 164 entry → 2.37 ms; iptables 44 863 rule → 3.31 ms
-- **p99**: iptables đuôi ngắn hơn ở quy mô nhỏ, hai đường **cắt nhau ≈ 3 000 Service**
-- 216 000 request, **0 lỗi**: khác biệt chỉ ở độ trễ
-
-</v-clicks>
-</div>
-<div class="card ebpf" v-click>
-
-### Kết luận E1
-Kết quả **ủng hộ giả thuyết**: chi phí Service của eBPF không đổi theo quy mô; iptables tăng tuyến tính, gấp đôi ở 10k Service.
-
-<div class="tiny mt-2 muted">
-
-**Giới hạn**: 3 lần/điểm; 1 mức tải; độ trễ gồm ~2.2 ms của app; chưa đo thời gian cập nhật rule; Cilium đo đường socket-LB (chưa đo TC per-packet); 2 cụm riêng (containerd/patch OS khác nhỏ), tải nền đã cân bằng, Tetragon tạm dừng khi đo.
-
-</div>
-</div>
-</div>
-
----
-layout: center
-class: text-center
-transition: fade
----
-
-<span class="demo-badge" v-motion :initial="{ scale: 0.4, opacity: 0 }" :enter="{ scale: 1, opacity: 1, transition: { type: 'spring', stiffness: 260, damping: 14 } }">LIVE DEMO</span>
-
-# E1 – Một Service trong iptables vs eBPF
-
-<div class="text-left inline-block small mt-4">
-
-```bash
-# Một Service được biểu diễn thế nào trên node client
-./e1/scripts/run-e1.py show iptables     # KUBE-SERVICES → KUBE-SVC → KUBE-SEP (DNAT)
-./e1/scripts/run-e1.py show cilium       # frontend + backend trong LB map
-
-# Kích thước datapath
-iptables-save -t nat | wc -l              # cụm Calico
-cilium-dbg bpf lb list | wc -l            # cụm Cilium
-
-# Chạy nhanh 1 vòng đo
-./e1/scripts/run-e1.py run cilium --quick
-```
 
 </div>
 
@@ -664,24 +602,6 @@ kubectl exec -n kube-system ds/tetragon -c tetragon -- \
 </div>
 
 ---
-
-# Ma trận quyết định kiến trúc
-
-| Tiêu chí | iptables / Calico + kube-proxy | eBPF / Cilium |
-|---|---|---|
-| **Tra cứu Service** | Duyệt tuần tự chain rule, $O(n)$ | BPF hash map, $O(1)$ — <span v-mark.green="1">**E1 xác nhận**</span> |
-| **Cập nhật table Service** | Sinh lại & nạp qua `iptables-restore` | Ghi nguyên tử từng phần tử |
-| **Đường đi trên host** | Netfilter + IP stack host + veth | Redirect trực tiếp tại TC/XDP |
-| **Conntrack** | `nf_conntrack` dùng chung | BPF LRU map riêng |
-| **Mô hình policy** | Label → tập IP trong ipset | Label → security identity — <span v-mark.green="3">**E2 xác nhận**</span> |
-| **Đồng bộ policy** | Sửa ipset mọi node khi IP đổi | Policy map độc lập IP; chỉ đồng bộ ipcache |
-| **Phạm vi policy** | L3/L4 | L3/L4 + L7 (Envoy) |
-| **Chẩn đoán drop** | Bộ đếm, không ngữ cảnh | Hubble: sự kiện có ngữ cảnh K8s |
-| **Bảo mật runtime** | Không thấy syscall | Tetragon: theo dõi & enforce trong kernel — <span v-mark.green="2">**E3 xác nhận**</span> |
-| **Yêu cầu kernel** | Hầu hết mọi phiên bản | ≥ 5.4; ≥ 5.10 cho BPF host routing |
-| **Vận hành** | Công cụ quen thuộc, tài liệu nhiều | Cần hiểu eBPF, `cilium`, `bpftool`, `hubble` |
-
----
 layout: center
 ---
 
@@ -698,4 +618,17 @@ layout: center
 </v-clicks>
 </div>
 
-<div v-click class="text-center mt-10 text-2xl font-bold" style="color:#14532d">Cảm ơn! Hỏi & Đáp</div>
+---
+layout: center
+class: text-center
+---
+
+<img src="/logo-uit.jpg" class="h-16 mx-auto mb-6" />
+
+<h1 v-motion :initial="{ y: 30, opacity: 0 }" :enter="{ y: 0, opacity: 1, transition: { duration: 700 } }" style="font-size:2.6rem;color:#14532d">Cảm ơn!</h1>
+
+<div v-motion :initial="{ y: 30, opacity: 0 }" :enter="{ y: 0, opacity: 1, transition: { duration: 700, delay: 250 } }" class="text-2xl mt-2">Hỏi & Đáp</div>
+
+<div v-motion :initial="{ opacity: 0 }" :enter="{ opacity: 1, transition: { duration: 700, delay: 550 } }" class="text-sm muted mt-8">
+Nhóm 12 · IT2003.11.CH · Cilium and eBPF-based Networking for Kubernetes
+</div>
