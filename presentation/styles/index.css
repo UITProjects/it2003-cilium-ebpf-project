@@ -66,3 +66,10 @@ tr.slidev-vclick-hidden { transform: none; }
 
 /* Static highlight for text below async-rendered diagrams (v-mark can misplace there). */
 .hl { background: linear-gradient(transparent 55%, #fed7aa 55%); padding: 0 2px; }
+
+/* Agenda: three numbered section cards; section 2 is split iptables | eBPF. */
+.card.split { background: linear-gradient(90deg, #fff7ed 35%, #f0fdf4 65%); border-color: #d1d5db; }
+.agenda-n { font-size: 2.4rem; font-weight: 800; line-height: 1; color: #14532d; }
+.agenda-t { font-size: 1.05rem; font-weight: 700; margin: 0.45rem 0 0.5rem; line-height: 1.3; }
+.agenda-l { font-size: 0.85rem; }
+.agenda-l li { margin: 0.2rem 0; }

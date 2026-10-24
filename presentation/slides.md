@@ -33,7 +33,7 @@ background: '#f7faf7'
 <div>
 
 **Môn học:** Công nghệ Mạng và Truyền thông hiện đại<br/>
-**Mã lớp:** IT2003.11.CH · **GV:** Lê Trung Quân<br/>
+**Mã lớp:** IT2003.11.CH · **PGS.** Lê Trung Quân<br/>
 Học kì II, 2025–2026
 
 </div>
@@ -49,75 +49,41 @@ Học kì II, 2025–2026
 
 ---
 
-# Nội dung
+# Agenda
 
-<div class="grid grid-cols-2 gap-8 mt-4">
-<div v-motion :initial="{ x: -40, opacity: 0 }" :enter="{ x: 0, opacity: 1, transition: { duration: 600 } }">
-
-1. **Bối cảnh & phạm vi đồ án**
-2. **Cơ sở lý thuyết**
-   - Mô hình mạng K8s, primitive của Linux
-   - Netfilter/iptables và eBPF
-   - Đường đi packet
-3. **Hạ tầng thực nghiệm**
-
-</div>
-<div v-motion :initial="{ x: 40, opacity: 0 }" :enter="{ x: 0, opacity: 1, transition: { duration: 600, delay: 200 } }">
-
-4. **E1** – Hiệu năng Service theo quy mô
-5. **E2** – Thực thi NetworkPolicy · <span class="demo-badge">DEMO</span>
-6. **E3** – Bảo mật runtime với Tetragon · <span class="demo-badge">DEMO</span>
-7. **Kết luận**
-
-</div>
+<div class="text-center mt-1 mb-6" v-motion :initial="{ opacity: 0 }" :enter="{ opacity: 1, transition: { duration: 600 } }">
+  <span class="hl">Mục tiêu: so sánh <b>iptables</b> phổ biến nhất với <b>eBPF</b> hiện đại ở quy mô cloud-native lớn</span>
 </div>
 
----
-
-# Bối cảnh: giới hạn của iptables ở quy mô cloud-native
-
-Kubernetes giao mạng cho **CNI** (IP, routing, NetworkPolicy) và **kube-proxy** (ClusterIP của Service). Cả hai truyền thống đều dựa trên **Netfilter/iptables**, vốn được thiết kế cho tập rule firewall tĩnh.
-
-<v-clicks>
-
-| Vấn đề | Nguyên nhân |
-|---|---|
-| **Độ phức tạp tuyến tính** | Packet đầu tiên của mỗi connection so khớp tuần tự chain rule Service → $O(n)$ |
-| **Cập nhật nguyên khối** | Đổi 1 Service → ghi lại rule table qua `iptables-restore` |
-| **Tranh chấp conntrack** | Table `nf_conntrack` dùng chung → nghẽn khi tạo connection mới nhanh |
-| **Policy gắn với IP** | NetworkPolicy → tập IP; IP Pod tạm thời → đồng bộ lại trên mọi node |
-| **Observability kém** | Drop chỉ tăng counter rule, không biết Pod/policy nào |
-
-</v-clicks>
-
----
-
-# Giải pháp hiện có & phạm vi đồ án
-
-<div class="small muted">
-
-Các hướng cải thiện đã có: kube-proxy **IPVS** / **nftables**, **Calico eBPF** dataplane, **Cilium**…
-
-</div>
-
-<div v-click class="mt-10 text-center text-lg">
-
-**Đồ án tập trung vào hai datapath cốt lõi**, qua hai CNI phổ biến nhất:
-
-<div class="flex items-stretch justify-center gap-10 mt-8">
-  <div class="card ipt text-center w-80 !py-6">
-    <div class="text-4xl font-bold">iptables</div>
-    <div class="small muted">Netfilter · kube-proxy</div>
-    <div class="mt-3 text-2xl font-bold">Calico</div>
+<div class="grid grid-cols-3 gap-5">
+  <div class="card neutral !p-4" v-motion :initial="{ y: 30, opacity: 0 }" :enter="{ y: 0, opacity: 1, transition: { duration: 600, delay: 200 } }">
+    <div class="agenda-n">1</div>
+    <div class="agenda-t">Giới thiệu Kubernetes networking</div>
+    <ul class="agenda-l">
+      <li>Linux namespace & veth</li>
+      <li>Mô hình mạng Kubernetes</li>
+      <li>CNI nối Pod vào mạng</li>
+    </ul>
   </div>
-  <div class="self-center text-3xl font-bold muted">vs</div>
-  <div class="card ebpf text-center w-80 !py-6">
-    <div class="text-4xl font-bold">eBPF</div>
-    <div class="small muted">kube-proxy replacement</div>
-    <div class="mt-3 text-2xl font-bold">Cilium</div>
+  <div class="card split !p-4" v-motion :initial="{ y: 30, opacity: 0 }" :enter="{ y: 0, opacity: 1, transition: { duration: 600, delay: 400 } }">
+    <div class="agenda-n">2</div>
+    <div class="agenda-t">Cơ chế cốt lõi: iptables vs eBPF</div>
+    <ul class="agenda-l">
+      <li>Netfilter / iptables · eBPF & BPF map</li>
+      <li>Đường đi packet · Service load balancing</li>
+      <li>NetworkPolicy</li>
+    </ul>
+    <div class="tiny muted mt-2">Hiện thực: Calico · Cilium</div>
   </div>
-</div>
-
+  <div class="card neutral !p-4" v-motion :initial="{ y: 30, opacity: 0 }" :enter="{ y: 0, opacity: 1, transition: { duration: 600, delay: 600 } }">
+    <div class="agenda-n">3</div>
+    <div class="agenda-t">Thực nghiệm kiểm chứng: Calico vs Cilium</div>
+    <ul class="agenda-l">
+      <li><b>E1</b> Hiệu năng Service theo quy mô</li>
+      <li><b>E2</b> NetworkPolicy</li>
+      <li><b>E3</b> Runtime security</li>
+    </ul>
+  </div>
 </div>
 
 
@@ -126,11 +92,43 @@ layout: section
 transition: slide-up | slide-down
 ---
 
-# Cơ sở lý thuyết
+# 1. Giới thiệu Kubernetes networking
+
+<div class="text-xl muted mt-4">Từ Linux namespace đến Pod</div>
 
 ---
 
-# Mô hình mạng Kubernetes
+# 1.1 Linux namespace & network namespace
+
+<NetnsIntro />
+
+<div class="small mt-2">
+<v-clicks at="2">
+
+- **Namespace**: cơ chế của kernel cô lập một loại tài nguyên cho một nhóm process (container = process + namespace). Kubernetes không tạo "máy ảo" mạng, chỉ dùng **network namespace**
+- → **Kubernetes: mỗi Pod = 1 netns riêng**: interface, route, iptables, conntrack, cổng riêng; container trong Pod dùng chung netns do **pause** container giữ · `ip netns`, `lsns -t net`
+
+</v-clicks>
+</div>
+
+---
+
+# 1.2 veth: cáp mạng ảo nối hai namespace
+
+<VethPair />
+
+<div class="small mt-2">
+<v-clicks at="2">
+
+- **veth** = cặp interface ảo: packet vào đầu này ra đầu kia. CNI tạo cặp khi Pod khởi động: một đầu vào netns của Pod (`eth0`), đầu kia ở host
+- Là **lối ra duy nhất** của Pod → mọi packet đi vào **network stack của host**; datapath chạy ở đó do CNI thiết lập (các slide sau)
+
+</v-clicks>
+</div>
+
+---
+
+# 1.3 Mô hình mạng Kubernetes
 
 <K8sModel />
 
@@ -148,7 +146,7 @@ transition: slide-up | slide-down
 
 ---
 
-# Primitive mạng của Linux & CNI
+# 1.4 Primitive mạng của Linux & CNI
 
 <LinuxPrimitives />
 
@@ -159,8 +157,17 @@ transition: slide-up | slide-down
 </div>
 
 ---
+layout: section
+transition: slide-up | slide-down
+---
 
-# Netfilter / iptables & conntrack
+# 2. Cơ chế cốt lõi: iptables vs eBPF
+
+<div class="text-xl muted mt-4">Hiện thực: Calico · Cilium</div>
+
+---
+
+# 2.1 Netfilter / iptables & conntrack
 
 <NetfilterFlow />
 
@@ -174,7 +181,7 @@ transition: slide-up | slide-down
 
 ---
 
-# eBPF: máy ảo an toàn trong kernel Linux
+# 2.2 eBPF: máy ảo an toàn trong kernel Linux
 
 <EbpfVM />
 
@@ -196,7 +203,7 @@ transition: slide-up | slide-down
 
 ---
 
-# BPF map & datapath của Cilium
+# 2.3 BPF map & datapath của Cilium
 
 <div class="cmp">
 <div class="small">
@@ -225,7 +232,7 @@ transition: slide-up | slide-down
 
 ---
 
-# Đường đi packet: intra-pod & intra-node
+# 2.4 Đường đi packet: intra-pod & intra-node
 
 <div class="small mb-2">
 
@@ -240,7 +247,7 @@ transition: slide-up | slide-down
 
 ---
 
-# Đường đi packet: inter-node (direct routing)
+# 2.5 Đường đi packet: inter-node (direct routing)
 
 <DirectRouting />
 
@@ -251,7 +258,7 @@ transition: slide-up | slide-down
 
 ---
 
-# Load balancing Service: kube-proxy iptables (E1)
+# 2.6 Load balancing Service: kube-proxy iptables
 
 ```text {1|2-3|4-5}
 -A KUBE-SERVICES -d 10.233.12.34/32 -p tcp --dport 80 -j KUBE-SVC-ABCD
@@ -279,17 +286,47 @@ transition: slide-up | slide-down
 </div>
 
 ---
+
+# 2.7 NetworkPolicy: iptables vs eBPF
+
+Packet chỉ mang **IP**, không mang **label** → mọi hiện thực đều phải dịch *label → thứ kiểm tra được trên packet*:
+
+<PolicyTranslate />
+
+<div class="small">
+<v-clicks>
+
+- **iptables**: policy **gắn với IP tạm thời** → Pod tạo/huỷ ⇒ Felix trên **mọi node** sửa ipset; trong lúc trễ: chặn nhầm Pod mới / cho phép nhầm IP tái sử dụng
+- **eBPF**: Pod mới cùng label ⇒ identity **đã có**, **policy map giữ nguyên**, chỉ phân phối ipcache (hoặc identity đi trong VNI). Hỗ trợ **L7** qua Envoy (`CiliumNetworkPolicy`)
+
+</v-clicks>
+</div>
+
+---
+
+# 2.8 So sánh cơ chế thực thi NetworkPolicy
+
+| | **iptables (Calico)** | **eBPF (Cilium)** |
+|---|---|---|
+| **Đơn vị nhận diện** | Địa chỉ IP của Pod | Security identity (số) từ label |
+| **Ai tạo ra (user space)** | Felix: selector → danh sách IP | cilium-agent: tập label → identity (`CiliumIdentity`) |
+| **Cấu trúc trong kernel** | ipset + chain `cali-*` | `cilium_policy_*`, `cilium_ipcache` |
+| **Khi Pod mới xuất hiện** | <span v-mark.orange="1">Cập nhật ipset trên **mọi node**</span> | <span v-mark.green="2">Chỉ cập nhật ipcache; **policy map giữ nguyên**</span> |
+| **Phạm vi** | L3/L4 | L3/L4 và **L7** (HTTP method/path qua Envoy) |
+| **Công cụ kiểm tra** | `ipset list`, `iptables-save` | `cilium identity list`, `cilium bpf policy get` |
+
+---
 layout: section
 transition: slide-up | slide-down
 ---
 
-# Hạ tầng thực nghiệm
+# 3. Thực nghiệm kiểm chứng: Calico vs Cilium
 
 ---
 clicks: 5
 ---
 
-# Topology homelab
+# 3.1 Topology homelab
 
 <div class="tiny muted -mt-3 mb-1">Terraform (bpg/proxmox) · Ansible · Kubespray · Cilium bằng Helm. Hai cụm 3 node song song, VM giống hệt nhau (4 vCPU, 4 GiB, 120 GB, Ubuntu 24.04, kernel 6.8).</div>
 
@@ -297,7 +334,7 @@ clicks: 5
 
 ---
 
-# Cấu hình hai cụm: chỉ khác lớp mạng
+# 3.2 Cấu hình hai cụm: chỉ khác lớp mạng
 
 | Thành phần | Cụm Calico (192.168.50.0/24) | Cụm Cilium (192.168.40.0/24) |
 |---|---|---|
@@ -318,15 +355,8 @@ Truy cập: OpenVPN (10.8.0.0/24) để vào IP L2 nội bộ khi demo; SSH/`kub
 </div>
 
 ---
-layout: section
-transition: slide-up | slide-down
----
 
-# E1 – Hiệu năng Service theo quy mô
-
----
-
-# E1: thiết lập đo
+# 3.3 E1 · Thiết lập đo
 
 <div class="text-center mb-4">
 
@@ -359,7 +389,7 @@ iptables duyệt `KUBE-SERVICES` tuần tự → độ trễ **tăng theo N**; C
 
 ---
 
-# E1: cách tính kết quả
+# 3.4 E1 · Cách tính kết quả
 
 <div class="mt-24"><E1Method /></div>
 
@@ -371,7 +401,7 @@ iptables duyệt `KUBE-SERVICES` tuần tự → độ trễ **tăng theo N**; C
 
 ---
 
-# E1: kết quả
+# 3.5 E1 · Kết quả
 
 <img src="/e1-hero.png" class="mx-auto" style="max-height:335px" v-motion :initial="{ y: 40, opacity: 0 }" :enter="{ y: 0, opacity: 1, transition: { duration: 600 } }" />
 
@@ -387,7 +417,7 @@ iptables duyệt `KUBE-SERVICES` tuần tự → độ trễ **tăng theo N**; C
 
 ---
 
-# E1: toàn bộ phân phối độ trễ
+# 3.6 E1 · Toàn bộ phân phối độ trễ
 
 <img src="/e1-cdf.png" class="w-full" v-motion :initial="{ y: 40, opacity: 0 }" :enter="{ y: 0, opacity: 1, transition: { duration: 600 } }" />
 
@@ -398,45 +428,8 @@ iptables duyệt `KUBE-SERVICES` tuần tự → độ trễ **tăng theo N**; C
 </div>
 
 ---
-layout: section
-transition: slide-up | slide-down
----
 
-# E2 – Thực thi NetworkPolicy
-
----
-
-# NetworkPolicy: iptables vs eBPF (E2)
-
-Packet chỉ mang **IP**, không mang **label** → mọi hiện thực đều phải dịch *label → thứ kiểm tra được trên packet*:
-
-<PolicyTranslate />
-
-<div class="small">
-<v-clicks>
-
-- **iptables**: policy **gắn với IP tạm thời** → Pod tạo/huỷ ⇒ Felix trên **mọi node** sửa ipset; trong lúc trễ: chặn nhầm Pod mới / cho phép nhầm IP tái sử dụng
-- **eBPF**: Pod mới cùng label ⇒ identity **đã có**, **policy map giữ nguyên**, chỉ phân phối ipcache (hoặc identity đi trong VNI). Hỗ trợ **L7** qua Envoy (`CiliumNetworkPolicy`)
-
-</v-clicks>
-</div>
-
----
-
-# So sánh cơ chế thực thi NetworkPolicy
-
-| | **iptables (Calico)** | **eBPF (Cilium)** |
-|---|---|---|
-| **Đơn vị nhận diện** | Địa chỉ IP của Pod | Security identity (số) từ label |
-| **Ai tạo ra (user space)** | Felix: selector → danh sách IP | cilium-agent: tập label → identity (`CiliumIdentity`) |
-| **Cấu trúc trong kernel** | ipset + chain `cali-*` | `cilium_policy_*`, `cilium_ipcache` |
-| **Khi Pod mới xuất hiện** | <span v-mark.orange="1">Cập nhật ipset trên **mọi node**</span> | <span v-mark.green="2">Chỉ cập nhật ipcache; **policy map giữ nguyên**</span> |
-| **Phạm vi** | L3/L4 | L3/L4 và **L7** (HTTP method/path qua Envoy) |
-| **Công cụ kiểm tra** | `ipset list`, `iptables-save` | `cilium identity list`, `cilium bpf policy get` |
-
----
-
-# Phân đoạn mạng Online Boutique: chặn lateral movement (E2)
+# 3.7 E2 · Phân đoạn mạng: chặn lateral movement
 
 <PolicySegment />
 
@@ -457,7 +450,7 @@ transition: fade
 
 <span class="demo-badge" v-motion :initial="{ scale: 0.4, opacity: 0 }" :enter="{ scale: 1, opacity: 1, transition: { type: 'spring', stiffness: 260, damping: 14 } }">LIVE DEMO</span>
 
-# E2 – Chặn lateral movement & reverse shell
+# 3.8 E2 · Demo: chặn lateral movement & reverse shell
 
 <div class="text-left inline-block small mt-4">
 
@@ -486,15 +479,8 @@ kubectl apply -f e2/case_reverse_shell.yaml   # egress chỉ web/DNS/ping; chặ
 </div>
 
 ---
-layout: section
-transition: slide-up | slide-down
----
 
-# E3 – Bảo mật runtime với Tetragon
-
----
-
-# Tetragon là gì?
+# 3.9 E3 · Tetragon là gì?
 
 <div class="small mb-2">
 
@@ -529,7 +515,7 @@ Trong E3, Tetragon theo dõi hook <span class="hl">`security_file_permission`</s
 
 ---
 
-# Vì sao iptables không làm được (E3)
+# 3.10 E3 · Vì sao iptables không làm được
 
 <div class="cmp small mt-2">
 <div class="card ipt">
@@ -560,7 +546,7 @@ Trong E3, Tetragon theo dõi hook <span class="hl">`security_file_permission`</s
 
 ---
 
-# Sau khai thác: đọc ServiceAccount token (E3)
+# 3.11 E3 · Sau khai thác: đọc ServiceAccount token
 
 <TetragonFlow />
 
@@ -582,7 +568,7 @@ transition: fade
 
 <span class="demo-badge" v-motion :initial="{ scale: 0.4, opacity: 0 }" :enter="{ scale: 1, opacity: 1, transition: { type: 'spring', stiffness: 260, damping: 14 } }">LIVE DEMO</span>
 
-# E3 – Tetragon bắt hành vi sau khai thác
+# 3.12 E3 · Demo: Tetragon bắt hành vi sau khai thác
 
 <div class="text-left inline-block small mt-4">
 
@@ -599,23 +585,6 @@ kubectl exec -n kube-system ds/tetragon -c tetragon -- \
 
 **PoC** `expoilt.php`: đọc token → kiểm tra danh tính & quyền Kubernetes API
 
-</div>
-
----
-layout: center
----
-
-# Kết luận
-
-<div class="small">
-<v-clicks>
-
-- Ở cụm nhỏ, phần cứng phổ thông, khác biệt lý thuyết **đo được rõ ràng**: với 10 000 Service, iptables chậm hơn **2.08×** mỗi connection mới, Cilium **không đổi**
-- eBPF tách **policy khỏi IP** (identity) và đem lại **observability có ngữ cảnh** mạng (Hubble) lẫn **bảo mật runtime** (Tetragon: theo dõi & enforce syscall/file trong kernel) mà iptables không có
-- Đổi lại: yêu cầu kernel mới hơn và đội vận hành phải học công cụ mới
-- **Khuyến nghị**: cụm lớn / nhiều Service / cần policy L7 & observability → **Cilium eBPF**; cụm nhỏ, kernel cũ, ưu tiên quen thuộc → iptables vẫn chấp nhận được
-
-</v-clicks>
 </div>
 
 ---
