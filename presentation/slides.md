@@ -205,30 +205,15 @@ transition: slide-up | slide-down
 
 # 2.3 BPF map & datapath của Cilium
 
-<div class="cmp">
-<div class="small">
+Trước khi có packet: agent ghi sẵn bảng tra cứu
 
-### BPF map
-- Chương trình eBPF **không giữ trạng thái**; trạng thái nằm trong **map** key-value trong kernel, read/write từ cả eBPF và user space
-- Loại: hash, **LRU hash**, array, **LPM trie** (CIDR), per-CPU, ring buffer / perf (đẩy sự kiện)
-- Cập nhật **nguyên tử từng phần tử** → không cần nạp lại chương trình
-- Kích thước cố định khi tạo → định cỡ theo quy mô cụm
+<BpfMaps />
 
-</div>
-<div class="small" v-click>
-
-### Cilium trên mỗi node
-**cilium-agent** theo dõi API server, nạp eBPF vào `lxc*`, NIC, `cilium_host`, `cilium_vxlan`.
-
-| Map | Vai trò |
-|---|---|
-| `cilium_lb4_services_v2` / `backends_v3` | Service & backend |
-| `cilium_ct4_global` | conntrack riêng |
-| `cilium_ipcache` | IP → security identity |
-| `cilium_policy_*` | policy từng endpoint |
-
-</div>
-</div>
+<!--
+Chương trình eBPF không giữ trạng thái; trạng thái nằm trong BPF map (key-value trong kernel), read/write từ cả eBPF và user space.
+Loại map: hash, LRU hash (conntrack), array, LPM trie (CIDR trong ipcache), per-CPU, ring buffer / perf (đẩy sự kiện cho Hubble).
+Kích thước map cố định khi tạo → phải định cỡ theo quy mô cụm.
+-->
 
 ---
 
