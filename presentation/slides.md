@@ -155,14 +155,19 @@ transition: slide-up | slide-down
 
 ---
 
-# 2.1 Netfilter / iptables & conntrack
+# 2.1 iptables: rule, chain & conntrack
 
-<NetfilterFlow />
+<IptablesChain />
 
 <!--
-5 hook, rule tổ chức thành table (filter, nat, mangle, raw) và chain. Mỗi chain là danh sách duyệt tuần tự đến target kết thúc (ACCEPT, DROP, DNAT…).
+Rule tổ chức thành table (filter, nat, mangle, raw) và chain. Mỗi chain là danh sách duyệt tuần tự đến target kết thúc (ACCEPT, DROP, DNAT…).
 conntrack: chỉ packet đầu tiên duyệt table nat; quyết định NAT được lưu cho các packet sau.
 → Chi phí iptables tập trung ở thiết lập connection → E1 đo connection mới cho mỗi request.
+
+Backup – Netfilter (nếu được hỏi):
+- iptables chỉ là công cụ ghi rule; rule chạy trong Netfilter, framework hook của kernel.
+- 5 hook: PREROUTING (vừa vào) → routing decision → INPUT (cho process local) hoặc FORWARD (đi qua node, vd. sang Pod) → OUTPUT (process local gửi ra) → POSTROUTING (trước khi rời interface).
+- kube-proxy gắn KUBE-SERVICES vào table nat ở PREROUTING (traffic từ Pod/ngoài vào) và OUTPUT (traffic từ chính node); SNAT/masquerade ở POSTROUTING.
 -->
 
 ---
@@ -192,11 +197,16 @@ Trước khi có packet: agent ghi sẵn bảng tra cứu
 Chương trình eBPF không giữ trạng thái; trạng thái nằm trong BPF map (key-value trong kernel), read/write từ cả eBPF và user space.
 Loại map: hash, LRU hash (conntrack), array, LPM trie (CIDR trong ipcache), per-CPU, ring buffer / perf (đẩy sự kiện cho Hubble).
 Kích thước map cố định khi tạo → phải định cỡ theo quy mô cụm.
+
+Backup (đã bỏ khỏi slide):
+- Service LB: cilium_lb4_services_v2 / backends_v3 map Service IP → Pod backend, thay kube-proxy (dùng trong E1, không dùng ở 2.4).
+- eBPF program còn gắn ở eth0 (NIC, traffic từ ngoài node) và cilium_host (traffic của host), không chỉ lxc*.
+- Tên map tùy phiên bản Cilium; xem cilium-dbg map list. Identity trên slide là ví dụ.
 -->
 
 ---
 
-# 2.4 Đường đi packet: intra-pod & intra-node
+# 2.4 Đường đi packet: intra-node
 
 <PathCompare />
 
@@ -211,10 +221,11 @@ Intra-node: iptables đi qua bridge/route /32, toàn bộ Netfilter của host; 
 
 <DirectRouting />
 
-<div v-click class="grid grid-cols-2 gap-4 small mt-2">
-  <div class="card ipt !py-2"><b>Calico</b>: BIRD quảng bá podCIDR của node qua <b>BGP</b></div>
-  <div class="card ebpf !py-2"><b>Cilium</b>: <code>autoDirectNodeRoutes</code> cài route trực tiếp (cùng L2)</div>
-</div>
+<!--
+Backup – route giữa các node được cài thế nào:
+- Calico: BIRD quảng bá podCIDR của node qua BGP.
+- Cilium: autoDirectNodeRoutes cài route trực tiếp (các node cùng L2).
+-->
 
 ---
 
@@ -402,7 +413,7 @@ Trong E3, Tetragon theo dõi hook <span class="hl">`security_file_permission`</s
 
 <div class="mt-5 text-center" v-click>
 
-<span class="hl">**Tetragon đòi hỏi eBPF** (kprobe/LSM, BTF)</span> — datapath **iptables/netfilter thuần không cung cấp** instrumentation này.<br/>
+<span class="hl">**Tetragon đòi hỏi eBPF** (kprobe/LSM, BTF)</span> — datapath **iptables thuần không cung cấp** instrumentation này.<br/>
 → Demo E3 chỉ chạy được trên cụm **Cilium/eBPF**; phía iptables **không có công cụ tương đương**.
 
 </div>

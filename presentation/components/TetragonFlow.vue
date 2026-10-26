@@ -49,7 +49,7 @@
 
     <!-- optional enforcement (red dashed) -->
     <path d="M430,162 C470,186 500,200 540,204" class="edge no" marker-end="url(#tf-no)" />
-    <text x="470" y="182" class="t-xs no-t" text-anchor="middle">enforce · Override -EPERM</text>
+    <text x="486" y="174" class="t-xs no-t" text-anchor="start">enforce · Override -EPERM</text>
     <rect x="540" y="192" width="114" height="42" rx="7" class="deny" />
     <text x="597" y="217" class="t-b" text-anchor="middle">Deny token read</text>
   </svg>
