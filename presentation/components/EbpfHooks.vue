@@ -14,15 +14,15 @@ const groups = [
   {
     kind: 'File', hi: true,
     rows: [
-      { hook: 'kprobe security_file_permission', at: 'kernel function', use: 'file read / write events' },
-      { hook: 'LSM file_open', at: 'LSM security check', use: 'allow / deny file open' },
+      { hook: 'kprobe → process_kprobe', at: 'security_file_permission(file, mask)', use: 'Quan sát yêu cầu đọc file (MAY_READ); bổ sung phát hiện LFI trong PHP worker' },
+
     ],
   },
   {
     kind: 'Process', hi: true,
     rows: [
-      { hook: 'tracepoint sched_process_exec', at: 'static kernel event', use: 'new process (exec)' },
-      { hook: 'tracepoint sched_process_exit', at: 'static kernel event', use: 'process exit' },
+      { hook: 'process_exec (event)', at: 'Cơ chế giám sát thực thi có sẵn của Tetragon', use: 'Ghi nhận binary, arguments, parent khi Command Injection thực thi chương trình' },
+
     ],
   },
 ]
@@ -32,7 +32,7 @@ const groups = [
   <div class="eh">
     <table>
       <thead>
-        <tr><th>Kind</th><th>Hook</th><th>Attach point</th><th>Used for</th></tr>
+        <tr><th>Nhóm</th><th>Hook / Event</th><th>Điểm gắn / Nguồn sự kiện</th><th>Vai trò trong thực nghiệm</th></tr>
       </thead>
       <tbody v-for="g in groups" :key="g.kind" :class="g.hi ? 'hi' : 'lo'">
         <tr v-for="(r, i) in g.rows" :key="r.hook">
@@ -45,11 +45,11 @@ const groups = [
     </table>
 
     <div class="eh-legend">
-      <span class="i"><i class="bx hi"></i> file / process hook · Tetragon</span>
+      <span class="i"><i class="bx hi"></i> file / process monitoring · Tetragon</span>
       <span class="i"><i class="bx lo"></i> network hook · Cilium datapath (E1, E2)</span>
     </div>
     <div class="take">
-      <span class="g">Tetragon = file/process hooks</span> · iptables chỉ có hook mạng (Netfilter)
+      <span class="g">Exec event phản ánh thực thi chương trình; file event bổ sung thao tác truy cập file</span>
     </div>
   </div>
 </template>
@@ -63,7 +63,7 @@ td { padding: 4px 12px; border-top: 1px solid #cbd5e1; vertical-align: middle; }
 .kind { font-weight: 700; border-right: 1px solid #cbd5e1; }
 
 /* File / Process: the focus. Green, larger, bold hook names, thick left bar. */
-.hi td { background: #dcf5dc; font-size: 15px; padding-top: 9px; padding-bottom: 9px; }
+.hi td { background: #dcf5dc; font-size: 13px; padding-top: 9px; padding-bottom: 9px; }
 .hi .kind { font-size: 17px; color: #14532d; box-shadow: inset 6px 0 0 #15803d; }
 .hi .hook { font-weight: 700; color: #14532d; }
 .lo + .hi tr:first-child td { border-top: 2px solid #374151; }

@@ -9,7 +9,7 @@ const { $clicks } = useSlideContext()
 const focus = computed(() => ['', 'access', 'cilium', 'calico', 'fw', ''][$clicks.value] ?? '')
 const SX = 52
 const SY = 34
-const YMAX = 12.2
+const YMAX = 8.6
 const X = (x: number) => x * SX
 const Y = (y: number) => (YMAX - y) * SY
 const W = 17 * SX
@@ -70,12 +70,6 @@ const P = (pts: number[][]) => pts.map(([x, y]) => `${X(x)},${Y(y)}`).join(' ')
       <line v-for="(v, i) in vms" :key="`stub${i}`" :data-g="v.g" :x1="X(v.x)" :x2="X(v.x)" :y1="Y(busY)" :y2="Y(v.y) - v.h / 2" />
       <polyline data-g="cilium access" :points="P([[0.95, 4.3], [0.95, 6.55], [7.6, 6.55], [7.6, 6.85]])" />
       <polyline data-g="calico access" :points="P([[16.05, 4.3], [16.05, 6.55], [9.4, 6.55], [9.4, 6.85]])" />
-      <line data-g="access" class="flow" :x1="X(8.5)" :x2="X(8.5)" :y1="Y(7.75)" :y2="Y(9.5) + 26" />
-      <line data-g="access" class="flow" :x1="X(8.5)" :x2="X(8.5)" :y1="Y(9.5) - 26" :y2="Y(11.4) + 13" />
-      <line data-g="access" class="flow" :x1="X(2.3) + 100" :x2="X(8.5) - 42" :y1="Y(11.4)" :y2="Y(11.4)" marker-end="url(#topo-arr)" />
-      <line data-g="access" class="flow" :x1="X(14.7) - 100" :x2="X(8.5) + 42" :y1="Y(11.4)" :y2="Y(11.4)" marker-end="url(#topo-arr)" />
-      <text data-g="access" :x="(X(2.3) + 100 + X(8.5) - 42) / 2" :y="Y(11.4) - 5" text-anchor="middle">UDP 2194</text>
-      <text data-g="access" :x="(X(14.7) - 100 + X(8.5) + 42) / 2" :y="Y(11.4) - 5" text-anchor="middle">TCP 2160–2165, 2443/2444</text>
     </svg>
 
     <!-- nodes -->
@@ -85,16 +79,6 @@ const P = (pts: number[][]) => pts.map(([x, y]) => `${X(x)},${Y(y)}`).join(' ')
     </div>
     <div class="label fw" data-g="fw" :style="{ left: `${X(16.8) - 250}px`, width: '250px', top: `${Y(7.3) - 22}px` }">
       Proxmox firewall (per VM):<br>OUT → 192.168.1.0/24: DROP<br>(VPN server → 192.168.1.2: allow)
-    </div>
-    <div class="box ext router" data-g="access" :style="center({ x: 8.5, y: 9.5, w: 250, h: 52 })">
-      <div><b>Home router</b> (DDNS)<br>port forwarding → 192.168.1.120<br>LAN 192.168.1.0/24</div>
-    </div>
-    <div class="box ext" data-g="access" :style="center({ x: 8.5, y: 11.4, w: 84, h: 26 })">Internet</div>
-    <div class="box ext" data-g="access" :style="center({ x: 2.3, y: 11.4, w: 200, h: 50 })">
-      <div><b>Member via VPN</b><br>OpenVPN (10.8.0.0/24)<br>direct access to internal L2 IPs</div>
-    </div>
-    <div class="box ext" data-g="access" :style="center({ x: 14.7, y: 11.4, w: 200, h: 50 })">
-      <div><b>Remote member</b><br>SSH, kubectl via forwarded ports<br>(manage K8s resources)</div>
     </div>
   </div>
 </template>
