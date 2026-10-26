@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Intra-node packet path, redrawn from fig:intranode in docs-latex/contents.tex.
 // A looping "packet" stalls at each iptables hook and skims the eBPF steps (revealed on click).
-// Steps ①–④ are the map lookups introduced on 2.3 (BpfMaps), same example Pods.
+// Steps ①–④ are the map lookups introduced on 2.4 (BpfMaps), same example Pods.
 const podA = 'Pod A eth0<br><code>frontend</code><br>10.0.1.5'
 const podB = 'Pod B eth0<br><code>backend</code><br>10.0.1.9:8080'
 const nf = [

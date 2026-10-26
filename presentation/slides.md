@@ -177,17 +177,28 @@ Backup – Netfilter (nếu được hỏi):
 <EbpfVM />
 
 <!--
-Các hook eBPF:
-- XDP: trong driver NIC, trước sk_buff, sớm nhất (LB North-South)
-- TC ingress/egress: mọi interface kể cả veth → Cilium dùng cho routing, NAT, policy
-- cgroup/socket (connect4, sendmsg4): dịch địa chỉ Service ngay tại connect()
-- sock_ops / sk_msg (sockmap): nối thẳng 2 socket cùng host
-- kprobe, tracepoint, LSM: observability & bảo mật runtime (Tetragon)
+Chương trình được load một lần (verifier kiểm tra an toàn, JIT ra mã máy), rồi gắn vào một kernel hook. Danh sách hook ở slide sau.
 -->
 
 ---
 
-# 2.3 BPF map & datapath của Cilium
+# 2.3 eBPF: kernel hooks
+
+<EbpfHooks />
+
+<!--
+Các hook eBPF, nhóm theo loại event:
+- Network (Cilium datapath, dùng cho E1/E2):
+  - TC ingress/egress: mọi interface kể cả veth → Cilium dùng cho routing, NAT, policy
+  - cgroup/socket (connect4, sendmsg4): dịch địa chỉ Service ngay tại connect()
+  - sock_ops / sk_msg (sockmap): nối thẳng 2 socket cùng host
+- File / Process (Tetragon, E3): kprobe, tracepoint, LSM → observability & bảo mật runtime
+Backup: còn uprobe (hàm user space), fentry/fexit, perf_event (profiling).
+-->
+
+---
+
+# 2.4 BPF map & datapath của Cilium
 
 Trước khi có packet: agent ghi sẵn bảng tra cứu
 
@@ -199,14 +210,14 @@ Loại map: hash, LRU hash (conntrack), array, LPM trie (CIDR trong ipcache), pe
 Kích thước map cố định khi tạo → phải định cỡ theo quy mô cụm.
 
 Backup (đã bỏ khỏi slide):
-- Service LB: cilium_lb4_services_v2 / backends_v3 map Service IP → Pod backend, thay kube-proxy (dùng trong E1, không dùng ở 2.4).
+- Service LB: cilium_lb4_services_v2 / backends_v3 map Service IP → Pod backend, thay kube-proxy (dùng trong E1, không dùng ở 2.5).
 - eBPF program còn gắn ở eth0 (NIC, traffic từ ngoài node) và cilium_host (traffic của host), không chỉ lxc*.
 - Tên map tùy phiên bản Cilium; xem cilium-dbg map list. Identity trên slide là ví dụ.
 -->
 
 ---
 
-# 2.4 Đường đi packet: intra-node
+# 2.5 Đường đi packet: intra-node
 
 <PathCompare />
 
@@ -217,7 +228,7 @@ Intra-node: iptables đi qua bridge/route /32, toàn bộ Netfilter của host; 
 
 ---
 
-# 2.5 Đường đi packet: inter-node (direct routing)
+# 2.6 Đường đi packet: inter-node (direct routing)
 
 <DirectRouting />
 
@@ -229,7 +240,7 @@ Backup – route giữa các node được cài thế nào:
 
 ---
 
-# 2.6 Load balancing Service: kube-proxy iptables
+# 2.7 Load balancing Service: kube-proxy iptables
 
 ```text {1|2-3|4-5}
 -A KUBE-SERVICES -d 10.233.12.34/32 -p tcp --dport 80 -j KUBE-SVC-ABCD
@@ -258,7 +269,7 @@ Backup – route giữa các node được cài thế nào:
 
 ---
 
-# 2.7 NetworkPolicy: iptables vs eBPF
+# 2.8 NetworkPolicy: iptables vs eBPF
 
 <PolicyTranslate />
 
