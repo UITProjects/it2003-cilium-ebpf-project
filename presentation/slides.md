@@ -62,7 +62,7 @@ Học kì II, 2025–2026
     <ul class="agenda-l">
       <li>netns · veth · CNI · mô hình mạng Kubernetes</li>
       <li>iptables (Netfilter) · eBPF & BPF map</li>
-      <li>Đường đi packet: intra-node · inter-node</li>
+      <li>Đường đi packet · direct routing</li>
     </ul>
   </div>
   <div class="card split !p-4" v-motion :initial="{ y: 30, opacity: 0 }" :enter="{ y: 0, opacity: 1, transition: { duration: 600, delay: 400 } }">
@@ -92,7 +92,7 @@ Chi tiết từng thành phần xem trong báo cáo.
 
 ---
 
-# 1.2 Mô hình mạng Kubernetes
+# 1.2 Mô hình mạng Kubernetes & direct routing
 
 <K8sModel />
 
@@ -101,7 +101,14 @@ Ba yêu cầu của mô hình mạng Kubernetes:
 ① Pod ↔ Pod mọi node, không NAT
 ② Node ↔ mọi Pod trên node
 ③ IP Pod tự thấy = IP người khác thấy
+Inter-node (click ②): mỗi node có route tới podCIDR của node kia qua IP node đó → packet giữ nguyên IP Pod trên L2 network.
 Service: ClusterIP ảo không gắn interface, chỉ là rule DNAT trên mỗi node (kube-proxy / eBPF) → E1.
+
+Backup – route giữa các node được cài thế nào:
+- Calico: BIRD quảng bá podCIDR của node qua BGP.
+- Cilium: autoDirectNodeRoutes cài route trực tiếp (các node cùng L2).
+- Direct routing: không encapsulation (không VXLAN/Geneve header) → MTU 1500 đầy đủ cho Pod.
+- Cả hai cụm cùng direct routing → khác biệt trong thực nghiệm chỉ đến từ xử lý Service / policy.
 -->
 
 ---
@@ -165,20 +172,6 @@ Backup (đã bỏ khỏi slide):
 <!--
 Intra-pod: các container chung netns → chung IP & không gian cổng, nói chuyện qua localhost (vẫn qua toàn bộ TCP/IP stack; sockmap có thể bỏ qua).
 Intra-node: iptables đi qua bridge/route /32, toàn bộ Netfilter của host; Cilium redirect thẳng sang veth Pod đích (BPF host routing, kernel ≥ 5.10).
--->
-
----
-
-# 1.7 Đường đi packet: inter-node (direct routing)
-
-<DirectRouting />
-
-<!--
-Backup – route giữa các node được cài thế nào:
-- Calico: BIRD quảng bá podCIDR của node qua BGP.
-- Cilium: autoDirectNodeRoutes cài route trực tiếp (các node cùng L2).
-- Direct routing: không encapsulation (không VXLAN/Geneve header) → MTU 1500 đầy đủ cho Pod, packet giữ nguyên IP Pod trên L2 network.
-- Cả hai cụm cùng direct routing → khác biệt trong thực nghiệm chỉ đến từ xử lý Service / policy.
 -->
 
 ---
