@@ -288,19 +288,6 @@ Packet chỉ mang **IP**, không mang **label** → mọi hiện thực đều p
 </div>
 
 ---
-
-# 2.8 So sánh cơ chế thực thi NetworkPolicy
-
-| | **iptables (Calico)** | **eBPF (Cilium)** |
-|---|---|---|
-| **Đơn vị nhận diện** | Địa chỉ IP của Pod | Security identity (số) từ label |
-| **Ai tạo ra (user space)** | Felix: selector → danh sách IP | cilium-agent: tập label → identity (`CiliumIdentity`) |
-| **Cấu trúc trong kernel** | ipset + chain `cali-*` | `cilium_policy_*`, `cilium_ipcache` |
-| **Khi Pod mới xuất hiện** | <span v-mark.orange="1">Cập nhật ipset trên **mọi node**</span> | <span v-mark.green="2">Chỉ cập nhật ipcache; **policy map giữ nguyên**</span> |
-| **Phạm vi** | L3/L4 | L3/L4 và **L7** (HTTP method/path qua Envoy) |
-| **Công cụ kiểm tra** | `ipset list`, `iptables-save` | `cilium identity list`, `cilium bpf policy get` |
-
----
 layout: section
 transition: slide-up | slide-down
 ---
@@ -319,29 +306,7 @@ clicks: 5
 
 ---
 
-# 3.2 Cấu hình hai cụm: chỉ khác lớp mạng
-
-| Thành phần | Cụm Calico (192.168.50.0/24) | Cụm Cilium (192.168.40.0/24) |
-|---|---|---|
-| **CNI** | Calico (Kubespray), iptables dataplane | Cilium 1.20.1 (Helm) |
-| **Service datapath** | kube-proxy, `kube_proxy_mode: iptables` | `kubeProxyReplacement: true` (không kube-proxy) |
-| **Pod routing** | Direct routing, BGP (BIRD) | Direct routing, `autoDirectNodeRoutes` |
-| **Masquerade** | iptables | eBPF (`bpf.masquerade`) |
-| **Pod CIDR** | 10.244.0.0/16, khối /26 | 10.244.0.0/16, /24 mỗi node |
-| **LoadBalancer** | – | LB-IPAM + L2 announcement, .40.130–150 |
-| **Observability** | – | Hubble, Relay, UI (192.168.40.132) |
-| **Kubernetes / kernel** | v1.35.8 · 6.8.0-142 | v1.35.7–8 · 6.8.0-142 |
-
-<div class="small mt-3" v-click>
-
-Cả hai dùng **direct routing**, MTU 1500 → khác biệt đo được phản ánh **cách xử lý Service & policy**, không phải chi phí encapsulation.
-Truy cập: OpenVPN (10.8.0.0/24) để vào IP L2 nội bộ khi demo; SSH/`kubectl` qua cổng forward (`:2443` Cilium, `:2444` Calico).
-
-</div>
-
----
-
-# 3.3 E1 · Thiết lập đo
+# 3.2 E1 · Thiết lập đo
 
 <div class="text-center mb-4">
 
@@ -351,9 +316,6 @@ Truy cập: OpenVPN (10.8.0.0/24) để vào IP L2 nội bộ khi demo; SSH/`kub
 
 <div class="cmp small">
 <div>
-
-### Giả thuyết
-iptables duyệt `KUBE-SERVICES` tuần tự → độ trễ **tăng theo N**; Cilium tra hash map → **không đổi**.
 
 ### Tải nền
 - Tạo $N \in \{100;\ 2080;\ 4060;\ 6040;\ 8020;\ 10000\}$ Service giả
@@ -374,19 +336,7 @@ iptables duyệt `KUBE-SERVICES` tuần tự → độ trễ **tăng theo N**; C
 
 ---
 
-# 3.4 E1 · Cách tính kết quả
-
-<div class="mt-24"><E1Method /></div>
-
-<div v-click class="text-center mt-10">
-
-<span class="hl">p50 = latency trung vị của 1 connection mới; p99 = đuôi chậm</span>
-
-</div>
-
----
-
-# 3.5 E1 · Kết quả
+# 3.3 E1 · Kết quả
 
 <img src="/e1-hero.png" class="mx-auto" style="max-height:335px" v-motion :initial="{ y: 40, opacity: 0 }" :enter="{ y: 0, opacity: 1, transition: { duration: 600 } }" />
 
@@ -396,25 +346,19 @@ iptables duyệt `KUBE-SERVICES` tuần tự → độ trễ **tăng theo N**; C
 |---:|---:|---:|---:|---:|---:|---:|
 | 100 | 1 303 | 664 | 2.33 | 2.48 | 4.28 / 6.59 | 0.94 |
 | 4 060 | 44 863 | 20 464 | 3.31 | 2.36 | 6.08 / 5.03 | 1.40 |
-| 10 000 | 110 203 | 50 164 | **4.93** | **2.37** | 9.93 / 4.96 | <span v-mark.circle.red="2">**2.08**</span> |
+| 10 000 | 110 203 | 50 164 | **4.93** | **2.37** | 9.93 / 4.96 | 2.08 |
 
 </div>
 
 ---
 
-# 3.6 E1 · Toàn bộ phân phối độ trễ
+# 3.4 E1 · Toàn bộ phân phối độ trễ
 
 <img src="/e1-cdf.png" class="w-full" v-motion :initial="{ y: 40, opacity: 0 }" :enter="{ y: 0, opacity: 1, transition: { duration: 600 } }" />
 
-<div v-click class="text-center mt-2">
-
-<span class="hl">iptables: cả đường dịch phải (+2.6 ms ở trung vị); Cilium: hai đường trùng nhau</span>
-
-</div>
-
 ---
 
-# 3.7 E2 · Phân đoạn mạng: chặn lateral movement
+# 3.5 E2 · Phân đoạn mạng: chặn lateral movement
 
 <PolicySegment />
 
@@ -428,44 +372,8 @@ iptables duyệt `KUBE-SERVICES` tuần tự → độ trễ **tăng theo N**; C
 </div>
 
 ---
-layout: center
-class: text-center
-transition: fade
----
 
-<span class="demo-badge" v-motion :initial="{ scale: 0.4, opacity: 0 }" :enter="{ scale: 1, opacity: 1, transition: { type: 'spring', stiffness: 260, damping: 14 } }">LIVE DEMO</span>
-
-# 3.8 E2 · Demo: chặn lateral movement & reverse shell
-
-<div class="text-left inline-block small mt-4">
-
-```bash
-# Nền: default-deny + least-privilege cho Online Boutique (Cilium)
-kubectl apply -f e2/cilium/        # 15 CiliumNetworkPolicy · ns microservices-google-demo
-
-# Mô phỏng frontend bị chiếm quyền (ephemeral container trong Pod frontend)
-kubectl debug -it pod/<frontend> -n microservices-google-demo \
-  --image=nicolaka/netshoot --target=server -- bash
-nc -zv -w3 cartservice 7070        # flow hợp lệ   → succeeded
-nc -zv -w3 redis-cart 6379         # lateral move   → BLOCK (timeout)
-nc -zv -w3 paymentservice 50051    # bỏ qua Checkout → BLOCK (timeout)
-hubble observe -n microservices-google-demo --verdict DROPPED   # "Policy denied", ai → ai
-
-# Cơ chế trong kernel: Calico ipset vs Cilium identity
-ipset list | grep -A3 cali40s      # Calico: label → tập IP
-cilium identity list               # Cilium: label → identity số
-
-# Bridge → E3: chặn callback reverse shell từ DVWA
-kubectl apply -f e2/case_reverse_shell.yaml   # egress chỉ web/DNS/ping; chặn TCP 4444
-```
-
-<div class="tiny muted mt-1">Timeout đơn thuần chưa đủ — đối chiếu flow <code>Policy denied</code> trong Hubble.</div>
-
-</div>
-
----
-
-# 3.9 E3 · Tetragon là gì?
+# 3.6 E3 · Tetragon là gì?
 
 <div class="small mb-2">
 
@@ -500,7 +408,7 @@ Trong E3, Tetragon theo dõi hook <span class="hl">`security_file_permission`</s
 
 ---
 
-# 3.10 E3 · Vì sao iptables không làm được
+# 3.7 E3 · Vì sao iptables không làm được
 
 <div class="cmp small mt-2">
 <div class="card ipt">
@@ -531,7 +439,7 @@ Trong E3, Tetragon theo dõi hook <span class="hl">`security_file_permission`</s
 
 ---
 
-# 3.11 E3 · Sau khai thác: đọc ServiceAccount token
+# 3.8 E3 · Sau khai thác: đọc ServiceAccount token
 
 <TetragonFlow />
 
@@ -543,33 +451,6 @@ Trong E3, Tetragon theo dõi hook <span class="hl">`security_file_permission`</s
 - Policy hiện tại ở chế độ <span class="hl">**monitor-only**</span>: ghi nhận, chưa chặn (enforce `Override -EPERM` là tuỳ chọn, cần kernel hỗ trợ)
 
 </v-clicks>
-</div>
-
----
-layout: center
-class: text-center
-transition: fade
----
-
-<span class="demo-badge" v-motion :initial="{ scale: 0.4, opacity: 0 }" :enter="{ scale: 1, opacity: 1, transition: { type: 'spring', stiffness: 260, damping: 14 } }">LIVE DEMO</span>
-
-# 3.12 E3 · Demo: Tetragon bắt hành vi sau khai thác
-
-<div class="text-left inline-block small mt-4">
-
-```bash
-# 1. Upload PoC qua trang File Upload của DVWA → hackable/uploads/expoilt.php
-# 2. Kích hoạt qua File Inclusion (LFI): ?page=../../hackable/uploads/expoilt.php
-#    → đọc token NGAY trong PHP worker, không sinh process mới
-
-# 3. Rule giám sát đọc file token (hook security_file_permission)
-kubectl apply -f e3/Tetragon/dvwa-token-monitor.yaml
-kubectl exec -n kube-system ds/tetragon -c tetragon -- \
-  tetra getevents -o compact        # sự kiện đọc .../serviceaccount/token
-```
-
-**PoC** `expoilt.php`: đọc token → kiểm tra danh tính & quyền Kubernetes API
-
 </div>
 
 ---
