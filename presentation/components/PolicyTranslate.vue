@@ -40,7 +40,7 @@ const cx = [158, 360, 578]
 </template>
 
 <style scoped>
-.pt { width: 100%; height: auto; display: block; margin: 0 auto; max-height: 232px; }
+.pt { width: 100%; height: auto; display: block; margin: 0 auto; max-height: 400px; }
 .ipt { fill: #ffe9cc; stroke: #374151; stroke-width: 1.4; }
 .bpf { fill: #dcf5dc; stroke: #374151; stroke-width: 1.4; }
 .edge { fill: none; stroke: #1f2937; stroke-width: 2; }

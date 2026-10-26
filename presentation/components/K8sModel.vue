@@ -69,7 +69,7 @@ const inter = 'M135,122 V198 H270 V350 H730 V198 H580 V122'
 </template>
 
 <style scoped>
-.k8s { width: 100%; height: auto; display: block; margin: 0 auto; max-height: 360px; }
+.k8s { width: 100%; height: auto; display: block; margin: 0 auto; max-height: 400px; }
 .node { fill: #f8fafc; stroke: #374151; stroke-width: 1.5; }
 .pod { fill: #e8eefc; stroke: #374151; }
 .host { fill: #f1f5f9; stroke: #6b7280; }

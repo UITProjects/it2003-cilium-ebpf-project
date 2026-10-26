@@ -102,14 +102,10 @@ transition: slide-up | slide-down
 
 <NetnsIntro />
 
-<div class="small mt-2">
-<v-clicks at="2">
-
-- **Namespace**: cơ chế của kernel cô lập một loại tài nguyên cho một nhóm process (container = process + namespace). Kubernetes không tạo "máy ảo" mạng, chỉ dùng **network namespace**
-- → **Kubernetes: mỗi Pod = 1 netns riêng**: interface, route, iptables, conntrack, cổng riêng; container trong Pod dùng chung netns do **pause** container giữ · `ip netns`, `lsns -t net`
-
-</v-clicks>
-</div>
+<!--
+Namespace: cơ chế của kernel cô lập một loại tài nguyên cho một nhóm process (container = process + namespace). Kubernetes không tạo "máy ảo" mạng, chỉ dùng network namespace.
+→ Kubernetes: mỗi Pod = 1 netns riêng: interface, route, iptables, conntrack, cổng riêng; container trong Pod dùng chung netns do pause container giữ · ip netns, lsns -t net
+-->
 
 ---
 
@@ -117,14 +113,10 @@ transition: slide-up | slide-down
 
 <VethPair />
 
-<div class="small mt-2">
-<v-clicks at="2">
-
-- **veth** = cặp interface ảo: packet vào đầu này ra đầu kia. CNI tạo cặp khi Pod khởi động: một đầu vào netns của Pod (`eth0`), đầu kia ở host
-- Là **lối ra duy nhất** của Pod → mọi packet đi vào **network stack của host**; datapath chạy ở đó do CNI thiết lập (các slide sau)
-
-</v-clicks>
-</div>
+<!--
+veth = cặp interface ảo: packet vào đầu này ra đầu kia. CNI tạo cặp khi Pod khởi động: một đầu vào netns của Pod (eth0), đầu kia ở host.
+Là lối ra duy nhất của Pod → mọi packet đi vào network stack của host; datapath chạy ở đó do CNI thiết lập (các slide sau).
+-->
 
 ---
 
@@ -132,17 +124,13 @@ transition: slide-up | slide-down
 
 <K8sModel />
 
-<div class="grid grid-cols-3 gap-3 small mt-1 text-center">
-  <div class="card neutral !py-1">① Pod ↔ Pod mọi node, <b>không NAT</b></div>
-  <div class="card neutral !py-1">② Node ↔ mọi Pod trên node</div>
-  <div class="card neutral !py-1">③ IP Pod tự thấy = IP người khác thấy</div>
-</div>
-
-<div v-click="3" class="small text-center mt-2">
-
-**Service**: ClusterIP ảo **không gắn interface**, chỉ là rule **DNAT** trên mỗi node (kube-proxy / eBPF)
-
-</div>
+<!--
+Ba yêu cầu của mô hình mạng Kubernetes:
+① Pod ↔ Pod mọi node, không NAT
+② Node ↔ mọi Pod trên node
+③ IP Pod tự thấy = IP người khác thấy
+Service: ClusterIP ảo không gắn interface, chỉ là rule DNAT trên mỗi node (kube-proxy / eBPF).
+-->
 
 ---
 
@@ -171,13 +159,11 @@ transition: slide-up | slide-down
 
 <NetfilterFlow />
 
-<v-clicks>
-
-- 5 hook, rule tổ chức thành **table** (`filter`, `nat`, `mangle`, `raw`) và **chain**. Mỗi chain là **danh sách duyệt tuần tự** đến target kết thúc (`ACCEPT`, `DROP`, `DNAT`…)
-- **conntrack**: chỉ **packet đầu tiên** duyệt table `nat`; quyết định NAT được lưu cho các packet sau
-- → Chi phí iptables tập trung ở <span class="hl">**thiết lập connection**</span> → E1 đo **connection mới cho mỗi request**
-
-</v-clicks>
+<!--
+5 hook, rule tổ chức thành table (filter, nat, mangle, raw) và chain. Mỗi chain là danh sách duyệt tuần tự đến target kết thúc (ACCEPT, DROP, DNAT…).
+conntrack: chỉ packet đầu tiên duyệt table nat; quyết định NAT được lưu cho các packet sau.
+→ Chi phí iptables tập trung ở thiết lập connection → E1 đo connection mới cho mỗi request.
+-->
 
 ---
 
@@ -185,21 +171,14 @@ transition: slide-up | slide-down
 
 <EbpfVM />
 
-<div class="cmp small" v-click>
-<div>
-
-- **XDP**: trong driver NIC, trước `sk_buff`, sớm nhất (LB North-South)
-- **TC ingress/egress**: mọi interface kể cả veth → Cilium dùng cho routing, NAT, policy
-- **cgroup/socket** (`connect4`, `sendmsg4`): dịch địa chỉ Service ngay tại `connect()`
-
-</div>
-<div>
-
-- **sock_ops / sk_msg** (sockmap): nối thẳng 2 socket cùng host
-- **kprobe, tracepoint, LSM**: observability & bảo mật runtime (Tetragon)
-
-</div>
-</div>
+<!--
+Các hook eBPF:
+- XDP: trong driver NIC, trước sk_buff, sớm nhất (LB North-South)
+- TC ingress/egress: mọi interface kể cả veth → Cilium dùng cho routing, NAT, policy
+- cgroup/socket (connect4, sendmsg4): dịch địa chỉ Service ngay tại connect()
+- sock_ops / sk_msg (sockmap): nối thẳng 2 socket cùng host
+- kprobe, tracepoint, LSM: observability & bảo mật runtime (Tetragon)
+-->
 
 ---
 
@@ -219,16 +198,12 @@ Kích thước map cố định khi tạo → phải định cỡ theo quy mô c
 
 # 2.4 Đường đi packet: intra-pod & intra-node
 
-<div class="small mb-2">
-
-**Intra-pod:** các container chung netns → chung IP & không gian cổng, nói chuyện qua `localhost` (vẫn qua toàn bộ TCP/IP stack; sockmap có thể bỏ qua).
-**Intra-node:** iptables đi qua bridge/route /32, toàn bộ Netfilter của host; Cilium **redirect thẳng** sang veth Pod đích (BPF host routing, kernel ≥ 5.10).
-
-</div>
-
-<div class="mt-4">
 <PathCompare />
-</div>
+
+<!--
+Intra-pod: các container chung netns → chung IP & không gian cổng, nói chuyện qua localhost (vẫn qua toàn bộ TCP/IP stack; sockmap có thể bỏ qua).
+Intra-node: iptables đi qua bridge/route /32, toàn bộ Netfilter của host; Cilium redirect thẳng sang veth Pod đích (BPF host routing, kernel ≥ 5.10).
+-->
 
 ---
 
@@ -274,18 +249,13 @@ Kích thước map cố định khi tạo → phải định cỡ theo quy mô c
 
 # 2.7 NetworkPolicy: iptables vs eBPF
 
-Packet chỉ mang **IP**, không mang **label** → mọi hiện thực đều phải dịch *label → thứ kiểm tra được trên packet*:
-
 <PolicyTranslate />
 
-<div class="small">
-<v-clicks>
-
-- **iptables**: policy **gắn với IP tạm thời** → Pod tạo/huỷ ⇒ Felix trên **mọi node** sửa ipset; trong lúc trễ: chặn nhầm Pod mới / cho phép nhầm IP tái sử dụng
-- **eBPF**: Pod mới cùng label ⇒ identity **đã có**, **policy map giữ nguyên**, chỉ phân phối ipcache (hoặc identity đi trong VNI). Hỗ trợ **L7** qua Envoy (`CiliumNetworkPolicy`)
-
-</v-clicks>
-</div>
+<!--
+Packet chỉ mang IP, không mang label → mọi hiện thực đều phải dịch label → thứ kiểm tra được trên packet.
+iptables: policy gắn với IP tạm thời → Pod tạo/huỷ ⇒ Felix trên mọi node sửa ipset; trong lúc trễ: chặn nhầm Pod mới / cho phép nhầm IP tái sử dụng.
+eBPF: Pod mới cùng label ⇒ identity đã có, policy map giữ nguyên, chỉ phân phối ipcache (hoặc identity đi trong VNI). Hỗ trợ L7 qua Envoy (CiliumNetworkPolicy).
+-->
 
 ---
 layout: section

@@ -50,7 +50,7 @@
 </template>
 
 <style scoped>
-.nf { width: 100%; height: auto; display: block; margin: 0 auto; max-height: 256px; }
+.nf { width: 100%; height: auto; display: block; margin: 0 auto; max-height: 400px; }
 .hook { fill: #ffe9cc; stroke: #374151; stroke-width: 1.4; }
 .end  { fill: #f8fafc; stroke: #9ca3af; }
 .dia path { fill: #e8eefc; stroke: #374151; stroke-width: 1.4; }

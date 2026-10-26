@@ -45,7 +45,7 @@
 </template>
 
 <style scoped>
-.vm { width: 100%; height: auto; display: block; margin: 0 auto; max-height: 268px; }
+.vm { width: 100%; height: auto; display: block; margin: 0 auto; max-height: 400px; }
 .grp { fill: #fcfdfc; stroke: #cbd5e1; stroke-dasharray: 5 4; }
 .bpf  { fill: #dcf5dc; stroke: #374151; stroke-width: 1.4; }
 .end  { fill: #f8fafc; stroke: #9ca3af; }
