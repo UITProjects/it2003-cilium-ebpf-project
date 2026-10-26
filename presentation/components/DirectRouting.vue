@@ -16,7 +16,7 @@ const flow = 'M100,104 V240 H285 V292 H785 V240 H600 V104'
     </defs>
 
     <line x1="60" x2="860" y1="292" y2="292" class="wire thick" />
-    <text x="460" y="326" class="t-sm" text-anchor="middle">L2 network 192.168.40.0/24 · MTU 1500 · no encapsulation</text>
+    <text x="460" y="326" class="t-sm" text-anchor="middle">L2 network 192.168.40.0/24</text>
 
     <g v-for="(n, k) in nodes" :key="n.name">
       <rect :x="n.x" y="10" width="380" height="240" rx="8" class="node" />

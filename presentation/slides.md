@@ -236,40 +236,12 @@ Intra-node: iptables đi qua bridge/route /32, toàn bộ Netfilter của host; 
 Backup – route giữa các node được cài thế nào:
 - Calico: BIRD quảng bá podCIDR của node qua BGP.
 - Cilium: autoDirectNodeRoutes cài route trực tiếp (các node cùng L2).
+- Direct routing: không encapsulation (không VXLAN/Geneve header) → MTU 1500 đầy đủ cho Pod, packet giữ nguyên IP Pod trên L2 network.
 -->
 
 ---
 
-# 2.7 Load balancing Service: kube-proxy iptables
-
-```text {1|2-3|4-5}
--A KUBE-SERVICES -d 10.233.12.34/32 -p tcp --dport 80 -j KUBE-SVC-ABCD
--A KUBE-SVC-ABCD -m statistic --mode random --probability 0.5 -j KUBE-SEP-1111
--A KUBE-SVC-ABCD -j KUBE-SEP-2222
--A KUBE-SEP-1111 -p tcp -j DNAT --to-destination 10.244.1.20:8080
--A KUBE-SEP-2222 -p tcp -j DNAT --to-destination 10.244.2.21:8080
-```
-
-<div class="cmp small mt-3">
-<div v-click>
-
-- `KUBE-SERVICES`: **1 rule / (ClusterIP, port)**, gọi từ `PREROUTING` & `OUTPUT`
-- `KUBE-SVC-*`: chọn backend ngẫu nhiên (`statistic`, 1/n, 1/(n-1)…)
-- `KUBE-SEP-*`: **DNAT** tới Pod backend
-
-</div>
-<div v-click>
-
-- **Tra cứu $O(n)$**: SYN có thể duyệt hàng nghìn rule → lộ rõ với TCP_CRR
-- **Cập nhật**: `iptables-restore` giữ khoá xtables, chậm theo kích thước table (partial sync từ 1.27)
-- **conntrack** chung: tranh chấp khoá, giới hạn `nf_conntrack_max`
-
-</div>
-</div>
-
----
-
-# 2.8 NetworkPolicy: iptables vs eBPF
+# 2.7 NetworkPolicy: iptables vs eBPF
 
 <PolicyTranslate />
 
