@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// Slide 2.4: cilium-agent pre-writes lookup rows (slow, rare); the per-packet eBPF program only reads them.
-// Cards ①–④ are the same steps the packet takes on 2.5 (PathCompare), with the same example Pods.
+// Slide 1.5: cilium-agent pre-writes lookup rows (slow, rare); the per-packet eBPF program only reads them.
+// Cards ①–④ are the same steps the packet takes on 1.6 (PathCompare), with the same example Pods.
 const maps = [
   { q: 'Kết nối này đã biết chưa?', name: 'cilium_ct4_global', k: '10.0.1.5:43210 → 10.0.1.9:8080 TCP', v: 'ESTABLISHED' },
   { q: 'IP này là ai?', name: 'cilium_ipcache', k: '10.0.1.9', v: 'identity 6789' },
