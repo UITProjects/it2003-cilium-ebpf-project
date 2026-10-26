@@ -5,7 +5,7 @@
 </script>
 
 <template>
-  <svg class="vm" viewBox="0 0 700 272">
+  <svg class="vm" viewBox="0 0 700 280">
     <defs>
       <marker id="vm-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#1f2937" /></marker>
       <marker id="vm-s" viewBox="0 0 10 10" refX="2" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto"><path d="M10,0 L0,5 L10,10 z" fill="#1f2937" /></marker>
@@ -24,28 +24,27 @@
     <rect x="468" y="52" width="160" height="46" rx="7" class="bpf" />
     <text x="548" y="79" class="t-b" text-anchor="middle">JIT → native</text>
 
-    <!-- attach -->
-    <path d="M548,108 C548,150 280,156 125,186" class="edge" marker-end="url(#vm-a)" />
-    <text x="360" y="150" class="t-s attach" text-anchor="middle">attach to hook</text>
-
     <!-- Run phase -->
-    <rect x="8" y="180" width="684" height="84" rx="10" class="grp" />
-    <text x="24" y="200" class="t-cap">Run</text>
-    <rect x="40" y="200" width="150" height="46" rx="7" class="bpf" />
-    <text x="115" y="227" class="t-b" text-anchor="middle">Kernel hook</text>
-    <path d="M196,223 H268" class="edge" marker-start="url(#vm-s)" marker-end="url(#vm-a)" />
-    <text x="232" y="215" class="t-s muted" text-anchor="middle">r/w</text>
-    <rect x="272" y="200" width="138" height="46" rx="7" class="bpf" />
-    <text x="341" y="227" class="t-b" text-anchor="middle">BPF maps</text>
-    <path d="M416,223 H488" class="edge" marker-start="url(#vm-s)" marker-end="url(#vm-a)" />
-    <rect x="492" y="200" width="168" height="46" rx="7" class="user" />
-    <text x="576" y="221" class="t-b" text-anchor="middle">User space</text>
-    <text x="576" y="237" class="t-s" text-anchor="middle">cilium-agent</text>
+    <rect x="8" y="180" width="684" height="92" rx="10" class="grp" />
+    <!-- attach (drawn after the Run group so the group box doesn't hide it) -->
+    <path d="M548,108 C548,160 115,150 115,204" class="edge" marker-end="url(#vm-a)" />
+    <text x="380" y="138" class="t-s attach" text-anchor="middle">attach to hook</text>
+    <text x="24" y="198" class="t-cap">Run</text>
+    <rect x="40" y="206" width="150" height="46" rx="7" class="bpf" />
+    <text x="115" y="233" class="t-b" text-anchor="middle">Kernel hook</text>
+    <path d="M196,229 H268" class="edge" marker-start="url(#vm-s)" marker-end="url(#vm-a)" />
+    <text x="232" y="221" class="t-s muted" text-anchor="middle">r/w</text>
+    <rect x="272" y="206" width="138" height="46" rx="7" class="bpf" />
+    <text x="341" y="233" class="t-b" text-anchor="middle">BPF maps</text>
+    <path d="M416,229 H488" class="edge" marker-start="url(#vm-s)" marker-end="url(#vm-a)" />
+    <rect x="492" y="206" width="168" height="46" rx="7" class="user" />
+    <text x="576" y="227" class="t-b" text-anchor="middle">User space</text>
+    <text x="576" y="243" class="t-s" text-anchor="middle">cilium-agent</text>
   </svg>
 </template>
 
 <style scoped>
-.vm { width: 100%; height: auto; display: block; margin: 0 auto; max-height: 268px; }
+.vm { width: 100%; height: auto; display: block; margin: 0 auto; max-height: 400px; }
 .grp { fill: #fcfdfc; stroke: #cbd5e1; stroke-dasharray: 5 4; }
 .bpf  { fill: #dcf5dc; stroke: #374151; stroke-width: 1.4; }
 .end  { fill: #f8fafc; stroke: #9ca3af; }

@@ -1,27 +1,28 @@
 <script setup lang="ts">
 // Kubernetes network model: two nodes, each with its own Pod CIDR.
-// Clicks: 1 intra-node flow, 2 node-to-node flow (no NAT), 3 Service ClusterIP = DNAT rule on every node.
+// Clicks: 1 intra-node flow, 2 node-to-node flow (no NAT) + the direct route to the peer's Pod CIDR,
+// 3 Service ClusterIP = DNAT rule on every node.
 const nodes = [
-  { x: 20, name: 'Node 1 · 192.168.40.161', cidr: 'podCIDR 10.244.1.0/24', eth: '.161', pods: [['Pod A', '10.244.1.10'], ['Pod B', '10.244.1.11']] },
-  { x: 480, name: 'Node 2 · 192.168.40.162', cidr: 'podCIDR 10.244.2.0/24', eth: '.162', pods: [['Pod C', '10.244.2.20'], ['Pod D', '10.244.2.21']] },
+  { x: 20, name: 'Node 1 · 192.168.40.161', cidr: 'podCIDR 10.244.1.0/24', eth: '.161', route: '10.244.2.0/24 via 192.168.40.162', pods: [['Pod A', '10.244.1.10'], ['Pod B', '10.244.1.11']] },
+  { x: 480, name: 'Node 2 · 192.168.40.162', cidr: 'podCIDR 10.244.2.0/24', eth: '.162', route: '10.244.1.0/24 via 192.168.40.161', pods: [['Pod C', '10.244.2.20'], ['Pod D', '10.244.2.21']] },
 ]
 const intra = 'M105,122 V186 H340 V122'
-const inter = 'M135,122 V198 H270 V350 H730 V198 H580 V122'
+const inter = 'M135,122 V198 H270 V380 H730 V198 H580 V122'
 </script>
 
 <template>
-  <svg class="k8s" viewBox="0 0 920 384">
+  <svg class="k8s" viewBox="0 0 920 414">
     <defs>
       <marker id="k8s-g" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#16a34a" /></marker>
       <marker id="k8s-b" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2563eb" /></marker>
     </defs>
 
     <!-- node network -->
-    <line x1="60" x2="860" y1="350" y2="350" class="wire thick" />
-    <text x="460" y="374" class="t-sm" text-anchor="middle">node network 192.168.40.0/24 · direct routing</text>
+    <line x1="60" x2="860" y1="380" y2="380" class="wire thick" />
+    <text x="460" y="404" class="t-sm" text-anchor="middle">node network 192.168.40.0/24 · direct routing</text>
 
     <g v-for="n in nodes" :key="n.name">
-      <rect :x="n.x" y="16" width="420" height="292" rx="8" class="node" />
+      <rect :x="n.x" y="16" width="420" height="330" rx="8" class="node" />
       <text :x="n.x + 12" y="40" class="t-b">{{ n.name }}</text>
       <text :x="n.x + 408" y="40" class="t-sm mono" text-anchor="end">{{ n.cidr }}</text>
       <!-- pods + veth -->
@@ -33,13 +34,13 @@ const inter = 'M135,122 V198 H270 V350 H730 V198 H580 V122'
         <text :x="n.x + 100 + i * 220" y="106" class="t-sm mono" text-anchor="middle">eth0 {{ p[1] }}</text>
       </g>
       <!-- root netns -->
-      <rect :x="n.x + 20" y="170" width="380" height="62" rx="6" class="host" />
-      <text :x="n.x + 32" y="222" class="t-xs">root netns · routing · iptables / eBPF</text>
+      <rect :x="n.x + 20" y="170" width="380" height="80" rx="6" class="host" />
+      <text :x="n.x + 32" y="242" class="t-xs">root netns · routing · iptables / eBPF</text>
       <!-- eth0 -->
-      <line :x1="n.x + 250" :x2="n.x + 250" y1="232" y2="258" class="wire" />
-      <line :x1="n.x + 250" :x2="n.x + 250" y1="292" y2="350" class="wire" />
-      <rect :x="n.x + 200" y="258" width="100" height="34" rx="5" class="nic" />
-      <text :x="n.x + 250" y="280" class="t-sm mono" text-anchor="middle">eth0 {{ n.eth }}</text>
+      <line :x1="n.x + 250" :x2="n.x + 250" y1="250" y2="276" class="wire" />
+      <line :x1="n.x + 250" :x2="n.x + 250" y1="310" y2="380" class="wire" />
+      <rect :x="n.x + 200" y="276" width="100" height="34" rx="5" class="nic" />
+      <text :x="n.x + 250" y="298" class="t-sm mono" text-anchor="middle">eth0 {{ n.eth }}</text>
     </g>
 
     <!-- 1: intra-node -->
@@ -52,8 +53,12 @@ const inter = 'M135,122 V198 H270 V350 H730 V198 H580 V122'
     <!-- 2: node-to-node -->
     <g v-click>
       <path :d="inter" class="flow blue" marker-end="url(#k8s-b)" />
-      <rect x="295" y="322" width="410" height="22" rx="4" class="hdr" />
-      <text x="500" y="338" class="t-sm mono blue-t" text-anchor="middle">② src 10.244.1.10 → dst 10.244.2.20 · no NAT</text>
+      <g v-for="n in nodes" :key="`rt${n.name}`">
+        <rect :x="n.x + 28" y="206" width="212" height="22" rx="4" class="hdr" />
+        <text :x="n.x + 34" y="221" class="t-xs mono blue-t">{{ n.route }}</text>
+      </g>
+      <rect x="295" y="352" width="410" height="22" rx="4" class="hdr" />
+      <text x="500" y="368" class="t-sm mono blue-t" text-anchor="middle">② src 10.244.1.10 → dst 10.244.2.20 · no NAT</text>
       <circle r="6" class="dot blue-d"><animateMotion :path="inter" dur="4.5s" repeatCount="indefinite" /></circle>
     </g>
 
@@ -69,7 +74,7 @@ const inter = 'M135,122 V198 H270 V350 H730 V198 H580 V122'
 </template>
 
 <style scoped>
-.k8s { width: 100%; height: auto; display: block; margin: 0 auto; max-height: 360px; }
+.k8s { width: 100%; height: auto; display: block; margin: 0 auto; max-height: 420px; }
 .node { fill: #f8fafc; stroke: #374151; stroke-width: 1.5; }
 .pod { fill: #e8eefc; stroke: #374151; }
 .host { fill: #f1f5f9; stroke: #6b7280; }

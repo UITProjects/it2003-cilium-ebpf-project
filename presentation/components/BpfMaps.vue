@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// Slide 2.3: cilium-agent pre-writes lookup rows (slow, rare); the per-packet eBPF program only reads them.
-// Cards ①–④ are the same steps the packet takes on 2.4 (PathCompare), with the same example Pods.
+// Slide 1.5: cilium-agent pre-writes lookup rows (slow, rare); the per-packet eBPF program only reads them.
+// Cards ①–④ are the same steps the packet takes on 1.6 (PathCompare), with the same example Pods.
 const maps = [
   { q: 'Kết nối này đã biết chưa?', name: 'cilium_ct4_global', k: '10.0.1.5:43210 → 10.0.1.9:8080 TCP', v: 'ESTABLISHED' },
   { q: 'IP này là ai?', name: 'cilium_ipcache', k: '10.0.1.9', v: 'identity 6789' },
@@ -8,11 +8,6 @@ const maps = [
   { q: 'Pod đích có ở node này không?', name: 'cilium_lxc (endpoint map)', k: '10.0.1.9', v: 'lxcYYY (local)' },
 ]
 const traits = ['key → value trong kernel', 'cập nhật từng dòng, không nạp lại chương trình', 'tra hash · O(1)']
-const hooks = [
-  { dev: 'lxc*', t: 'traffic của Pod', on: true },
-  { dev: 'eth0 (NIC)', t: 'traffic từ ngoài node', on: false },
-  { dev: 'cilium_host', t: 'traffic của host', on: false },
-]
 </script>
 
 <template>
@@ -65,11 +60,6 @@ const hooks = [
           </div>
         </div>
         <div class="tail">
-          <div class="card off" v-click="1">
-            <span class="mono name">cilium_lb4_services_v2 / backends_v3</span>
-            <span>Service IP → Pod backend (thay kube-proxy)</span>
-            <span class="tag">không dùng ở 2.4</span>
-          </div>
           <div class="read" v-click="2">
             <svg viewBox="0 0 14 40" width="14" height="40">
               <defs>
@@ -82,7 +72,7 @@ const hooks = [
         </div>
         <div class="strip" v-click="2">
           <span class="st">eBPF programs gắn tại:</span>
-          <span v-for="h in hooks" :key="h.dev" class="chip" :class="{ on: h.on }"><code>{{ h.dev }}</code> {{ h.t }}</span>
+          <span class="chip"><code>lxc*</code> traffic của Pod</span>
         </div>
       </div>
     </div>
@@ -90,7 +80,6 @@ const hooks = [
     <div class="take" v-click="3">
       <span class="w">Agent ghi trước</span> (chậm, ít khi) → <span class="r">eBPF chỉ đọc mỗi packet</span> (nhanh, O(1))
     </div>
-    <div class="foot">Tên map tùy phiên bản; xem <code>cilium-dbg map list</code> · identity là ví dụ</div>
   </div>
 </template>
 
@@ -129,21 +118,15 @@ const hooks = [
 .kv span { padding: 1px 6px; }
 .kv span + span { border-left: 1px solid #9ca3af; font-weight: 700; }
 
-.tail { display: flex; align-items: stretch; gap: 8px; }
-.card.off { flex: 1; background: #f3f4f6; border-color: #d1d5db; color: #9ca3af; font-size: 10.5px; padding: 3px 8px; flex-wrap: wrap; gap: 2px 8px; margin: 0; align-self: center; }
-.card.off .name { color: #9ca3af; font-size: 10px; }
-.tag { font-size: 9.5px; padding: 0 6px; border-radius: 999px; border: 1px dashed #9ca3af; }
+.tail { display: flex; justify-content: flex-end; }
 .read { display: flex; align-items: center; gap: 4px; padding-right: 14px; }
 .dot { fill: none; stroke: #1f2937; stroke-width: 2; stroke-dasharray: 3 3; }
 
 .strip { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 2px; padding: 5px 8px; border: 1px solid #374151; border-radius: 7px; background: #fff; font-size: 11px; }
 .st { font-weight: 700; }
-.chip { padding: 1px 7px; border-radius: 999px; background: #f3f4f6; border: 1px solid #d1d5db; color: #6b7280; }
-.chip.on { background: #dcf5dc; border: 2px solid #15803d; color: #14532d; font-weight: 700; }
+.chip { padding: 1px 7px; border-radius: 999px; background: #dcf5dc; border: 2px solid #15803d; color: #14532d; font-weight: 700; }
 
 .take { margin-top: 14px; text-align: center; font-size: 15px; font-weight: 700; }
 .take .w { color: #1e40af; }
 .take .r { color: #15803d; }
-.foot { margin-top: 6px; text-align: right; font-size: 9.5px; color: #9ca3af; }
-.foot code { font-size: 9.5px; }
 </style>
