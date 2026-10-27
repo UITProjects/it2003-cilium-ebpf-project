@@ -2,6 +2,7 @@
 // Intra-node packet path, redrawn from fig:intranode in docs-latex/contents.tex.
 // A looping "packet" stalls at each iptables hook and skims the eBPF steps (revealed on click).
 // Steps ①–④ are the map lookups introduced on 1.5 (BpfMaps), same example Pods.
+const props = withDefaults(defineProps<{ mode?: 'both' | 'calico' | 'cilium' }>(), { mode: 'both' })
 const podA = 'Pod A eth0<br><code>frontend</code><br>10.0.1.5'
 const podB = 'Pod B eth0<br><code>backend</code><br>10.0.1.9:8080'
 const nf = [
@@ -22,16 +23,16 @@ const steps = [
 </script>
 
 <template>
-  <div class="paths">
-    <div class="title">iptables</div>
+  <div class="paths" :class="{ single: props.mode !== 'both' }">
+    <template v-if="props.mode !== 'cilium'"><div class="title">Calico · datapath iptables</div>
     <div class="row">
       <template v-for="(b, i) in nf" :key="i">
         <div class="arrow" v-if="i > 0" />
         <div class="box" :class="b.c" v-html="b.t" />
       </template>
-      <div class="pkt slow" />
+      
     </div>
-    <div v-click>
+    </template><div v-if="props.mode !== 'calico'">
       <div class="title">Cilium eBPF host-routing</div>
       <div class="row">
         <div class="box pod" v-html="podA" />
@@ -50,13 +51,14 @@ const steps = [
         </div>
         <div class="arrow fix" />
         <div class="box pod" v-html="podB" />
-        <div class="pkt fast" />
+        
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
+.single { padding: 64px 0 40px; }
 .paths { font-size: 12px; line-height: 1.25; }
 .title { font-weight: 700; text-align: center; margin: 6px 0 4px; }
 .row { display: flex; align-items: center; position: relative; }

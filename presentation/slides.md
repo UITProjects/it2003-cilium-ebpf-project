@@ -113,67 +113,68 @@ Backup – route giữa các node được cài thế nào:
 
 ---
 
-# 1.3 iptables: rule, chain & conntrack
+# 1.3 Calico · iptables: rule, chain & conntrack
 
 <IptablesChain />
 
 <!--
-Rule tổ chức thành table (filter, nat, mangle, raw) và chain. Mỗi chain là danh sách duyệt tuần tự đến target kết thúc (ACCEPT, DROP, DNAT…).
-conntrack: chỉ packet đầu tiên duyệt table nat; quyết định NAT được lưu cho các packet sau.
-→ Chi phí iptables tập trung ở thiết lập connection → E1 đo connection mới cho mỗi request.
-
-Backup – Netfilter (nếu được hỏi):
-- iptables chỉ là công cụ ghi rule; rule chạy trong Netfilter, framework hook của kernel.
-- 5 hook: PREROUTING (vừa vào) → routing decision → INPUT (cho process local) hoặc FORWARD (đi qua node, vd. sang Pod) → OUTPUT (process local gửi ra) → POSTROUTING (trước khi rời interface).
-- kube-proxy gắn KUBE-SERVICES vào table nat ở PREROUTING (traffic từ Pod/ngoài vào) và OUTPUT (traffic từ chính node); SNAT/masquerade ở POSTROUTING.
+Người trình bày: phụ trách Calico. Phạm vi là Calico dùng Linux datapath iptables trong thực nghiệm này; Calico còn có chế độ eBPF.
+Giải thích rule, table và chain trước, sau đó conntrack. Chỉ packet đầu tiên của kết nối đi qua xử lý NAT; trạng thái NAT được áp dụng cho các packet sau.
+E1 đo kết nối mới, vì vậy cần phân biệt chi phí thiết lập kết nối với xử lý packet của kết nối đã có.
+Chuyển tiếp: xem các thành phần này xuất hiện ở đâu trên đường Pod tới Pod cùng node.
 -->
 
 ---
 
-# 1.4 eBPF: máy ảo an toàn trong kernel Linux
+# 1.4 Calico · Đường đi packet giữa hai Pod cùng node
 
-<EbpfVM />
+<PathCompare mode="calico" />
+
+<div class="small mt-3">
+
+- Packet rời Pod A qua **veth**, đi vào network stack của host.
+- Host định tuyến tới Pod B; traffic đi qua các hook **Netfilter**, nơi rule iptables thực hiện kiểm tra tương ứng.
+- Ví dụ này dùng **IP Pod trực tiếp**; không minh họa bước dịch ClusterIP của Service.
+
+</div>
 
 <!--
-Chương trình được load một lần (verifier kiểm tra an toàn, JIT ra mã máy), rồi gắn vào một kernel hook.
-Hook mạng mà Cilium datapath dùng (E1/E2):
-- TC ingress/egress: mọi interface kể cả veth → routing, NAT, policy
-- cgroup/socket (connect4, sendmsg4): dịch địa chỉ Service ngay tại connect()
-- sock_ops / sk_msg (sockmap): nối thẳng 2 socket cùng host
-Hook file/process (kprobe, tracepoint, LSM) → Tetragon, xem E3 (2.3.1).
-Backup: còn uprobe (hàm user space), fentry/fexit, perf_event (profiling).
+Người trình bày: phụ trách Calico. Sơ đồ khái quát, không phải mọi hook đều thực hiện NAT cho mọi packet. Conntrack lưu trạng thái; đường đi thực tế phụ thuộc cấu hình datapath.
+Kết thúc phần Calico: phần vừa rồi là đường xử lý của cụm Calico dùng iptables. Mời phần Cilium để giải thích chương trình eBPF và BPF map trước khi xem đường đi packet tương ứng.
 -->
 
 ---
 
-# 1.5 BPF map & datapath của Cilium
+# 1.5 Cilium · Chương trình eBPF & BPF map
 
-Trước khi có packet: agent ghi sẵn bảng tra cứu
-
-<BpfMaps />
+<EbpfIntro />
 
 <!--
-Chương trình eBPF không giữ trạng thái; trạng thái nằm trong BPF map (key-value trong kernel), read/write từ cả eBPF và user space.
-Loại map: hash, LRU hash (conntrack), array, LPM trie (CIDR trong ipcache), per-CPU, ring buffer / perf (đẩy sự kiện cho Hubble).
-Kích thước map cố định khi tạo → phải định cỡ theo quy mô cụm.
-
-Backup (đã bỏ khỏi slide):
-- Service LB: cilium_lb4_services_v2 / backends_v3 map Service IP → Pod backend, thay kube-proxy (xem E1, 2.1.1).
-- eBPF program còn gắn ở eth0 (NIC, traffic từ ngoài node) và cilium_host (traffic của host), không chỉ lxc*.
-- Tên map tùy phiên bản Cilium; xem cilium-dbg map list. Identity trên slide là ví dụ.
+Người trình bày: phụ trách Cilium. Chương trình được biên dịch thành BPF bytecode trước khi nạp qua bpf(); verifier kiểm tra và JIT biên dịch thành mã máy khi được hỗ trợ/bật.
+Chương trình gắn vào hook và sử dụng BPF maps trong kernel. cilium-agent cập nhật thông tin endpoint, identity và policy; chương trình datapath cũng có thể cập nhật trạng thái như conntrack.
+Các dòng trong bảng mô tả chức năng, không khẳng định mọi map đều có cùng cấu trúc hay độ phức tạp O(1).
+Chuyển tiếp: xem chương trình eBPF và các map tham gia xử lý packet Pod tới Pod cùng node.
 -->
 
 ---
 
-# 1.6 Đường đi packet: intra-node
+# 1.6 Cilium · Đường đi packet giữa hai Pod cùng node
 
-<PathCompare />
+<PathCompare mode="cilium" />
+
+<div class="small mt-3">
+
+- Packet từ Pod A đi vào chương trình **eBPF** ở phía host của veth.
+- Datapath sử dụng trạng thái kết nối, identity, policy và endpoint để quyết định xử lý; hình mô tả các chức năng chính.
+- Với **BPF host routing** được bật và hỗ trợ, packet được chuyển tiếp tới Pod cục bộ mà không đi theo đường Netfilter như hình Calico.
+
+</div>
 
 <!--
-Intra-pod: các container chung netns → chung IP & không gian cổng, nói chuyện qua localhost (vẫn qua toàn bộ TCP/IP stack; sockmap có thể bỏ qua).
-Intra-node: iptables đi qua bridge/route /32, toàn bộ Netfilter của host; Cilium redirect thẳng sang veth Pod đích (BPF host routing, kernel ≥ 5.10).
+Người trình bày: phụ trách Cilium. Ví dụ dùng IP Pod trực tiếp, không phải đường Service load balancing. Các IP và identity chỉ là minh họa.
+Không coi các ô trong hình là thứ tự hook cố định cho mọi trường hợp; policy có thể được thực thi ở phía endpoint nguồn và đích tùy hướng traffic/cấu hình.
+Không suy ra kết quả hiệu năng từ hình. E1 trình bày phép đo Service ở phần thực nghiệm.
 -->
-
 ---
 clicks: 5
 transition: slide-up | slide-down
@@ -251,7 +252,9 @@ eBPF: Pod mới cùng label ⇒ identity đã có, policy map giữ nguyên, ch�
 
 ---
 
-# 2.2.2 E2 · Phân đoạn mạng: chặn lateral movement
+# 2.2.2 E2 · Phân đoạn mạng để hạn chế lateral movement
+
+<div class="text-sm muted -mt-2 mb-3">Giả định frontend đã bị chiếm quyền: kiểm thử kết nối từ Pod này tới các dịch vụ trong và ngoài allowlist.</div>
 
 <PolicySegment />
 
@@ -259,46 +262,57 @@ eBPF: Pod mới cùng label ⇒ identity đã có, policy map giữ nguyên, ch�
 <v-clicks>
 
 - **Default deny** cả ingress lẫn egress → chỉ đường tới Redis **qua Cart**, tới Payment **qua Checkout**; lối tắt trực tiếp bị từ chối
-- Frontend bị chiếm quyền chỉ chạm được allowlist → **thu hẹp blast radius**; nhận diện theo <span class="hl">**security identity**</span> (label), không theo IP
+- Giới hạn kết nối ngoài allowlist để **thu hẹp phạm vi ảnh hưởng**; kiểm thử TCP không chứng minh đã ngăn mọi hình thức lateral movement
 
 </v-clicks>
 </div>
 
 ---
-layout: center
-class: text-center
-transition: fade
----
 
-<span class="demo-badge" v-motion :initial="{ scale: 0.4, opacity: 0 }" :enter="{ scale: 1, opacity: 1, transition: { type: 'spring', stiffness: 260, damping: 14 } }">LIVE DEMO</span>
+# 2.2.3 E2 · Kiểm chứng NetworkPolicy bằng Hubble
 
-# 2.2.3 E2 · Demo: chặn lateral movement & reverse shell
+<div class="text-lg mb-5">Policy quy định đường được phép; <b class="text-green-800">Hubble quan sát traffic và lý do bị drop.</b></div>
 
-<div class="text-left inline-block small mt-4">
+<table class="w-full text-sm !mb-5">
+<thead><tr><th>Luồng kiểm thử</th><th>Kết quả kỳ vọng</th><th>Ý nghĩa quan sát</th></tr></thead>
+<tbody>
+<tr><td><b>frontend → cartservice</b><br>TCP / 7070</td><td class="text-green-700"><b>FORWARDED</b></td><td>Packet được chuyển tiếp tại điểm quan sát</td></tr>
+<tr><td><b>frontend → redis-cart</b><br>TCP / 6379</td><td class="text-orange-700"><b>DROPPED</b><br>Policy denied</td><td>Truy cập trực tiếp bị policy từ chối</td></tr>
+<tr><td><b>frontend → paymentservice</b><br>TCP / 50051</td><td class="text-orange-700"><b>DROPPED</b><br>Policy denied</td><td>Đường gọi bỏ qua checkoutservice bị từ chối</td></tr>
+</tbody>
+</table>
 
-```bash
-# Nền: default-deny + least-privilege cho Online Boutique (Cilium)
-kubectl apply -f e2/cilium/        # 15 CiliumNetworkPolicy · ns microservices-google-demo
+<div class="text-sm leading-relaxed">
 
-# Mô phỏng frontend bị chiếm quyền (ephemeral container trong Pod frontend)
-kubectl debug -it pod/<frontend> -n microservices-google-demo \
-  --image=nicolaka/netshoot --target=server -- bash
-nc -zv -w3 cartservice 7070        # flow hợp lệ   → succeeded
-nc -zv -w3 redis-cart 6379         # lateral move   → BLOCK (timeout)
-nc -zv -w3 paymentservice 50051    # bỏ qua Checkout → BLOCK (timeout)
-hubble observe -n microservices-google-demo --verdict DROPPED   # "Policy denied", ai → ai
-
-# Cơ chế trong kernel: Calico ipset vs Cilium identity
-ipset list | grep -A3 cali40s      # Calico: label → tập IP
-cilium identity list               # Cilium: label → identity số
-
-# Bridge → E3: chặn callback reverse shell từ DVWA
-kubectl apply -f e2/case_reverse_shell.yaml   # egress chỉ web/DNS/ping; chặn TCP 4444
-```
-
-<div class="tiny muted mt-1">Timeout đơn thuần chưa đủ — đối chiếu flow <code>Policy denied</code> trong Hubble.</div>
+- Đối chiếu **Pod nguồn / đích, cổng, thời gian, verdict và drop reason** với lần kiểm thử.
+- **Timeout chưa đủ kết luận policy chặn**; `FORWARDED` cũng chưa chứng minh request ứng dụng thành công.
 
 </div>
+
+<div class="text-xs muted mt-4">Minh họa kết quả kỳ vọng theo policy thiết kế; cần đối chiếu flow thực tế của bài thực nghiệm.</div>
+
+<!--
+Người trình bày: phụ trách Cilium/E2. Đây là minh họa, không phải log thực tế đã thu được.
+Trước demo, xác nhận endpointSelector và serviceaccount khớp Pod, enforcement bật, policy đã được thực thi; hiện kết quả frontend chỉ có DNS chưa đủ xác nhận các quyền ứng dụng đã áp dụng.
+Với Hubble CLI đã kết nối Relay: hubble observe --namespace microservices-google-demo --verdict DROPPED --follow
+Quan sát trên Relay để bao phủ các node, hoặc agent đúng node nếu quan sát cục bộ. Drop có nhiều nguyên nhân, phải kiểm tra Policy denied.
+Hubble quan sát sự kiện datapath của Cilium; chính Cilium thực thi policy. Không gọi Hubble là thành phần chặn.
+Chuyển phần: Hubble cho biết luồng mạng; tiếp theo Tetragon quan sát hành vi process/file bên trong workload.
+Nguồn: https://docs.cilium.io/en/stable/observability/hubble/hubble-cli/
+-->
+
+---
+
+# 2.2.4 E2 · Cilium ghi nhận kết nối bị policy chặn
+
+<div class="text-base muted mb-5">Quan sát packet bị drop bằng <code>cilium-dbg monitor --type drop -v</code>.</div>
+
+<DropMonitorExplain />
+
+<!--
+Ảnh người dùng cung cấp. Không suy diễn đây là frontend tới Redis/Payment, hoặc gán cho policy YAML cụ thể khi chưa đối chiếu identity, Pod, policy và thời điểm.
+Không khẳng định reverse shell đã được kiểm thử chỉ từ địa chỉ và cổng trong ảnh.
+-->
 
 ---
 
@@ -317,7 +331,7 @@ Vì sao iptables không làm được:
 - Muốn observe process/file → phải thêm công cụ khác (auditd…), nằm ngoài iptables.
 → Tetragon đòi hỏi eBPF (kprobe/LSM, BTF); demo E3 chỉ chạy trên cụm Cilium/eBPF, phía iptables không có công cụ tương đương.
 
-Trong E3, Tetragon theo dõi hook security_file_permission để bắt việc đọc serviceaccount/token — thứ File Inclusion làm ngay trong PHP worker. (Cần kernel có eBPF/BTF; BPF-LSM để enforce.)
+Trong E3, Tetragon theo dõi hook security_file_permission để bắt việc đọc serviceaccount/token — thứ File Inclusion làm ngay trong PHP worker. (File policy dùng kprobe; process_exec/exit có sẵn. Override cần kernel hỗ trợ, không mặc định đòi BPF-LSM.)
 -->
 
 ---
@@ -329,39 +343,35 @@ Trong E3, Tetragon theo dõi hook security_file_permission để bắt việc đ
 <div class="small mt-2">
 <v-clicks>
 
-- **Command Injection** sinh process mới → giám sát theo **exec** bắt được ngay
-- **File Inclusion** đọc token **ngay trong PHP worker** có sẵn → giám sát theo process **bỏ sót** → cần rule theo **đường dẫn file**, không theo tên process
-- Policy hiện tại ở chế độ <span class="hl">**monitor-only**</span>: ghi nhận, chưa chặn (enforce `Override -EPERM` là tuỳ chọn, cần kernel hỗ trợ)
+- **Command Injection:** chạy lệnh đọc file như `ca.crt`, ServiceAccount token → Tetragon ban đầu ghi nhận **process thực thi lệnh**
+- **File Upload → File Inclusion:** PHP đọc file ngay trong worker có sẵn, không sinh process mới → **bỏ lọt khi chỉ giám sát process**
+- **Thêm rule monitor file** tại `security_file_permission` → ghi nhận thao tác đọc cùng đường dẫn file và PHP worker. <span class="hl">**Monitor-only, chưa chặn**</span>
 
 </v-clicks>
 </div>
 
 ---
-layout: center
-class: text-center
-transition: fade
----
 
-<span class="demo-badge" v-motion :initial="{ scale: 0.4, opacity: 0 }" :enter="{ scale: 1, opacity: 1, transition: { type: 'spring', stiffness: 260, damping: 14 } }">LIVE DEMO</span>
+# 2.3.3 E3 · Ghi nhận process từ Command Injection
 
-# 2.3.3 E3 · Demo: Tetragon bắt hành vi sau khai thác
+<div class="text-base muted mb-6">DVWA thực thi lệnh; Tetragon ghi nhận các process phát sinh trong Pod.</div>
 
-<div class="text-left inline-block small mt-4">
+<img src="/e3-command-injection-process.png" class="w-full rounded" alt="Log Tetragon trong Pod DVWA: process và exit của shell, ping và id" />
 
-```bash
-# 1. Upload PoC qua trang File Upload của DVWA → hackable/uploads/expoilt.php
-# 2. Kích hoạt qua File Inclusion (LFI): ?page=../../hackable/uploads/expoilt.php
-#    → đọc token NGAY trong PHP worker, không sinh process mới
+<div class="text-base mt-6 leading-relaxed">
 
-# 3. Rule giám sát đọc file token (hook security_file_permission)
-kubectl apply -f e3/Tetragon/dvwa-token-monitor.yaml
-kubectl exec -n kube-system ds/tetragon -c tetragon -- \
-  tetra getevents -o compact        # sự kiện đọc .../serviceaccount/token
-```
-
-**PoC** `expoilt.php`: đọc token → kiểm tra danh tính & quyền Kubernetes API
+- **Process:** `/bin/sh` khởi chạy `ping` và `id`; log hiển thị binary và arguments.
+- **Exit:** ghi nhận kết thúc process; các dòng trong ảnh có exit status `0`.
 
 </div>
+
+<div class="text-sm muted mt-4">Bằng chứng cho giám sát process; ảnh này chưa thể hiện thao tác đọc file hay phát hiện File Inclusion.</div>
+
+<!--
+Ảnh do người dùng cung cấp. Lệnh tetra getevents lọc theo Pod DVWA; ví dụ shell chạy ping và id.
+Không diễn giải log này thành bằng chứng đọc ca.crt/token, chặn lệnh hay file-access event.
+Liên hệ bước 1 ở slide trước: Command Injection tạo process mới nên được ghi nhận; LFI đọc trực tiếp trong PHP worker cần bổ sung rule file.
+-->
 
 ---
 layout: center

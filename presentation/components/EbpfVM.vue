@@ -15,7 +15,7 @@
     <rect x="8" y="24" width="684" height="84" rx="10" class="grp" />
     <text x="24" y="44" class="t-cap">Load</text>
     <rect x="28" y="52" width="150" height="46" rx="7" class="end" />
-    <text x="103" y="79" class="t-b" text-anchor="middle">restricted C</text>
+    <text x="103" y="79" class="t-b" text-anchor="middle">BPF bytecode</text>
     <path d="M178,75 H258" class="edge" marker-end="url(#vm-a)" />
     <text x="218" y="67" class="t-s muted" text-anchor="middle">bpf() syscall</text>
     <rect x="258" y="52" width="150" height="46" rx="7" class="bpf" />
