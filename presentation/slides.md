@@ -60,7 +60,7 @@ Học kì II, 2025–2026
     <div class="agenda-n">1</div>
     <div class="agenda-t">Nền tảng: Kubernetes networking, iptables & eBPF</div>
     <ul class="agenda-l">
-      <li>netns · veth · CNI · mô hình mạng Kubernetes</li>
+      <li>mô hình mạng Kubernetes</li>
       <li>iptables (Netfilter) · eBPF & BPF map</li>
       <li>Đường đi packet · direct routing</li>
     </ul>
@@ -78,21 +78,7 @@ Học kì II, 2025–2026
 
 ---
 
-# 1.1 Linux primitive & CNI: netns · veth
-
-<LinuxPrimitives />
-
-<!--
-Namespace: cơ chế của kernel cô lập một loại tài nguyên cho một nhóm process (container = process + namespace). Kubernetes không tạo "máy ảo" mạng, chỉ dùng network namespace.
-→ Mỗi Pod = 1 netns riêng: interface, route, iptables, conntrack, cổng riêng; container trong Pod dùng chung netns do pause container giữ · ip netns, lsns -t net
-veth = cặp interface ảo: packet vào đầu này ra đầu kia. CNI tạo cặp khi Pod khởi động: một đầu vào netns của Pod (eth0), đầu kia ở host.
-Là lối ra duy nhất của Pod → mọi packet đi vào network stack của host; datapath chạy ở đó do CNI thiết lập (các slide sau).
-Chi tiết từng thành phần xem trong báo cáo.
--->
-
----
-
-# 1.2 Mô hình mạng Kubernetes & direct routing
+# 1.1 Mô hình mạng Kubernetes & direct routing
 
 <K8sModel />
 
@@ -101,7 +87,7 @@ Ba yêu cầu của mô hình mạng Kubernetes:
 ① Pod ↔ Pod mọi node, không NAT
 ② Node ↔ mọi Pod trên node
 ③ IP Pod tự thấy = IP người khác thấy
-Inter-node (click ②): mỗi node có route tới podCIDR của node kia qua IP node đó → packet giữ nguyên IP Pod trên L2 network.
+Inter-node (②): mỗi node có route tới podCIDR của node kia qua IP node đó → packet giữ nguyên IP Pod trên L2 network.
 Service: ClusterIP ảo không gắn interface, chỉ là rule DNAT trên mỗi node (kube-proxy / eBPF) → E1.
 
 Backup – route giữa các node được cài thế nào:
@@ -109,11 +95,12 @@ Backup – route giữa các node được cài thế nào:
 - Cilium: autoDirectNodeRoutes cài route trực tiếp (các node cùng L2).
 - Direct routing: không encapsulation (không VXLAN/Geneve header) → MTU 1500 đầy đủ cho Pod.
 - Cả hai cụm cùng direct routing → khác biệt trong thực nghiệm chỉ đến từ xử lý Service / policy.
+- netns/veth: mỗi Pod = 1 network namespace riêng; CNI tạo cặp veth, đầu eth0 trong Pod, đầu lxc* / cali* ở host → mọi packet của Pod đi qua network stack của host.
 -->
 
 ---
 
-# 1.3 Calico · iptables: rule, chain & conntrack
+# 1.2 Calico · iptables: rule, chain & conntrack
 
 <IptablesChain />
 
@@ -126,7 +113,7 @@ Chuyển tiếp: xem các thành phần này xuất hiện ở đâu trên đư�
 
 ---
 
-# 1.4 Calico · Đường đi packet giữa hai Pod cùng node
+# 1.3 Calico · Đường đi packet giữa hai Pod cùng node
 
 <PathCompare mode="calico" />
 
@@ -145,7 +132,7 @@ Kết thúc phần Calico: phần vừa rồi là đường xử lý của cụm
 
 ---
 
-# 1.5 Cilium · Chương trình eBPF & BPF map
+# 1.4 Cilium · Chương trình eBPF & BPF map
 
 <EbpfIntro />
 
@@ -158,7 +145,7 @@ Chuyển tiếp: xem chương trình eBPF và các map tham gia xử lý packet 
 
 ---
 
-# 1.6 Cilium · Đường đi packet giữa hai Pod cùng node
+# 1.5 Cilium · Đường đi packet giữa hai Pod cùng node
 
 <PathCompare mode="cilium" />
 
@@ -220,21 +207,23 @@ Cập nhật: iptables-restore giữ khoá xtables, chậm theo kích thước t
 
 # 2.1.2 E1 · Kết quả
 
-<img src="/e1-hero.png" class="mx-auto" style="max-height:335px" v-motion :initial="{ y: 40, opacity: 0 }" :enter="{ y: 0, opacity: 1, transition: { duration: 600 } }" />
-
-<div v-click>
-
-| N Service | Table iptables | Table Cilium | p50 iptables (ms) | p50 Cilium (ms) | p99 ipt / cil (ms) | p50 ipt/cil |
-|---:|---:|---:|---:|---:|---:|---:|
-| 100 | 1 303 | 664 | 2.33 | 2.48 | 4.28 / 6.59 | 0.94 |
-| 4 060 | 44 863 | 20 464 | 3.31 | 2.36 | 6.08 / 5.03 | 1.40 |
-| 10 000 | 110 203 | 50 164 | **4.93** | **2.37** | 9.93 / 4.96 | 2.08 |
-
-</div>
+<img src="/e1-hero.png" class="mx-auto" style="max-height:440px" v-motion :initial="{ y: 40, opacity: 0 }" :enter="{ y: 0, opacity: 1, transition: { duration: 600 } }" />
 
 ---
 
-# 2.1.3 E1 · Toàn bộ phân phối độ trễ
+# 2.1.3 E1 · Độ trễ đuôi (p99)
+
+<img src="/e1-hero-p99.png" class="mx-auto" style="max-height:440px" v-motion :initial="{ y: 40, opacity: 0 }" :enter="{ y: 0, opacity: 1, transition: { duration: 600 } }" />
+
+<!--
+p99 = 1% request chậm nhất. Ở 10 000 Service: iptables 9.93 ms, Cilium 4.96 ms.
+Phần lớn mức tăng của iptables nằm ở bước 8 020 → 10 000; p99 không tăng tuyến tính như p50, nên không vẽ đường slope.
+Lợi thế của eBPF ở p99 là khả năng mở rộng, không phải mọi quy mô đều nhanh hơn.
+-->
+
+---
+
+# 2.1.4 E1 · Toàn bộ phân phối độ trễ
 
 <img src="/e1-cdf.png" class="w-full" v-motion :initial="{ y: 40, opacity: 0 }" :enter="{ y: 0, opacity: 1, transition: { duration: 600 } }" />
 

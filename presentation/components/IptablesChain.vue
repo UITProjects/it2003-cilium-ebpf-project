@@ -33,10 +33,10 @@
     <rect x="422" y="74" width="98" height="48" rx="7" class="rule hit" />
     <text x="471" y="95" class="t-b" text-anchor="middle">rule n</text>
     <text x="471" y="112" class="t-s yes" text-anchor="middle">✓ match</text>
-    <text x="340" y="146" class="t-s muted" text-anchor="middle">sequential match · O(n) rules</text>
+    <text x="340" y="146" class="t-b" text-anchor="middle">sequential match · O(n) rules</text>
 
     <path d="M520,98 H580" class="edge" marker-end="url(#ic-a)" />
-    <rect x="580" y="74" width="92" height="48" rx="7" class="rule" />
+    <rect x="580" y="74" width="92" height="48" rx="7" class="plain" />
     <text x="626" y="95" class="t-b" text-anchor="middle">DNAT</text>
     <text x="626" y="111" class="t-s mono" text-anchor="middle">→ Pod IP</text>
     <path d="M672,98 H716" class="edge" marker-end="url(#ic-a)" />
@@ -58,8 +58,8 @@
 
     <!-- destination -->
     <rect x="716" y="74" width="132" height="198" rx="7" class="pod" />
-    <text x="782" y="168" class="t-b" text-anchor="middle">backend Pod</text>
-    <text x="782" y="186" class="t-s mono" text-anchor="middle">10.244.1.20</text>
+    <text x="782" y="168" class="t-b muted" text-anchor="middle">backend Pod</text>
+    <text x="782" y="186" class="t-s mono muted" text-anchor="middle">10.244.1.20</text>
   </svg>
 
   <div class="ic-legend">
@@ -76,7 +76,8 @@
 .rule { fill: #ffe9cc; stroke: #374151; stroke-width: 1.4; }
 .rule.hit { stroke-width: 2.4; }
 .ct   { fill: #e8eefc; stroke: #374151; stroke-width: 1.4; }
-.pod  { fill: #e8eefc; stroke: #374151; stroke-width: 1.4; }
+.pod  { fill: #fafafa; stroke: #9ca3af; }
+.plain { fill: #fff; stroke: #9ca3af; stroke-width: 1.4; }
 .end  { fill: #f8fafc; stroke: #9ca3af; }
 .edge { fill: none; stroke: #1f2937; stroke-width: 2; }
 .edge.save { stroke: #6b7280; stroke-dasharray: 6 4; }
