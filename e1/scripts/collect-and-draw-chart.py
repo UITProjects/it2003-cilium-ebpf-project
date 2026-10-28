@@ -6,6 +6,8 @@ in a separate CSV) plus the raw fortio histograms in <csv dir>/raw/, then writes
 
   <stem>.png           all charts in one figure (for the report)
   <stem>-1-hero.png    1. what happens: p50 latency vs number of Services
+  <stem>-slide-p50.png  minimal versions of chart 1 for the slides (p50 and p99):
+  <stem>-slide-p99.png  takeaway title, the two lines and their end values only
   <stem>-2-why.png     2. why: data-plane size vs number of Services
   <stem>-3-cdf.png     3. the whole distribution: latency CDF, smallest vs largest N
   <stem>_summary.csv   mean / SD per setup and N
@@ -42,6 +44,10 @@ SURFACE, INK, INK2, MUTED, GRID = "#fcfcfb", "#0b0b0b", "#52514e", "#a3a29c", "#
 SERIES = {"iptables": dict(color="#e34948", marker="o"), "cilium": dict(color="#2a78d6", marker="s")}
 ORDER = ["iptables", "cilium"]
 SHORT = {"iptables": "iptables", "cilium": "Cilium eBPF"}
+SLIDE_NAME = {"iptables": "Calico (iptables)", "cilium": "Cilium (eBPF)"}
+# Hero chart metric -> (short name, subtitle lead).
+METRIC = {"p50_ms": ("p50", "Median time per HTTP request"),
+          "p99_ms": ("p99", "99th-percentile time per HTTP request")}
 
 plt.rcParams.update({
     "figure.facecolor": SURFACE, "axes.facecolor": SURFACE, "savefig.facecolor": SURFACE,
@@ -118,20 +124,20 @@ def style(setup) -> dict:
     return SERIES.get(setup, dict(color=MUTED, marker="^"))
 
 
-def analyse(agg, rows) -> dict[str, dict]:
-    """Per setup: change in p50 from smallest to largest N, noise, fits, 'clear growth' flag."""
+def analyse(agg, rows, metric: str = "p50_ms") -> dict[str, dict]:
+    """Per setup: change in `metric` from smallest to largest N, noise, fits, 'clear growth' flag."""
     out = {}
     for s in setups_in(agg):
         pts = agg[s]
         lo, hi = pts[0], pts[-1]
-        d = hi["p50_ms"][0] - lo["p50_ms"][0]
+        d = hi[metric][0] - lo[metric][0]
         rs = [r for r in rows if r["setup"] == s]
         out[s] = {
             "lo": lo, "hi": hi, "delta_ms": d,
-            "rel": d / lo["p50_ms"][0] * 100 if lo["p50_ms"][0] else math.nan,
-            "noise_ms": max(lo["p50_ms"][1], hi["p50_ms"][1]),
-            "fit_rules": linfit([num(r["rules"]) for r in rs], [num(r["p50_ms"]) for r in rs]),
-            "fit_n": linfit([p["n"] for p in pts], [p["p50_ms"][0] for p in pts]),
+            "rel": d / lo[metric][0] * 100 if lo[metric][0] else math.nan,
+            "noise_ms": max(lo[metric][1], hi[metric][1]),
+            "fit_rules": linfit([num(r["rules"]) for r in rs], [num(r[metric]) for r in rs]),
+            "fit_n": linfit([p["n"] for p in pts], [p[metric][0] for p in pts]),
             "per_svc": linfit([p["n"] for p in pts], [p["rules"][0] for p in pts]),
         }
         out[s]["grew"] = len(pts) > 1 and d > 2 * out[s]["noise_ms"] and out[s]["rel"] > 10
@@ -205,10 +211,11 @@ def titled(ax, title: str, subtitle: str) -> None:
     ax.text(0, 1.02, subtitle, transform=ax.transAxes, fontsize=9.5, color=INK2, va="bottom")
 
 
-def line(ax, xs, ys, sds, s, label) -> None:
+def line(ax, xs, ys, sds, s, label, band: bool = True) -> None:
     st = style(s)
     ys, sds = np.array(ys), np.array(sds)
-    ax.fill_between(xs, ys - sds, ys + sds, color=st["color"], alpha=0.14, lw=0)
+    if band:
+        ax.fill_between(xs, ys - sds, ys + sds, color=st["color"], alpha=0.14, lw=0)
     ax.plot(xs, ys, color=st["color"], lw=2, marker=st["marker"], ms=7, mec=SURFACE, mew=1.5,
             label=label, zorder=3)
 
@@ -230,30 +237,41 @@ def end_labels(ax, items) -> None:
 
 # ------------------------------------------------------------------ the three charts
 
-def draw_hero(ax, agg, st, head) -> None:
+def draw_hero(ax, agg, st, head, metric: str = "p50_ms", minimal: bool = False) -> None:
+    """minimal=True is the slide version: takeaway title, the two lines and their end values only."""
+    name, lead = METRIC[metric]
     ns = [p["n"] for s in agg for p in agg[s]]
     items = []
     for s in setups_in(agg):
         pts = agg[s]
         xs = [p["n"] for p in pts]
-        line(ax, xs, [p["p50_ms"][0] for p in pts], [p["p50_ms"][1] for p in pts], s, SETUP_LABEL.get(s, s))
+        line(ax, xs, [p[metric][0] for p in pts], [p[metric][1] for p in pts], s, SETUP_LABEL.get(s, s),
+             band=not minimal)
         a = st[s]
-        hi = a["hi"]["p50_ms"][0]
+        hi = a["hi"][metric][0]
+        if minimal:
+            items.append((xs[-1], hi, f"{SLIDE_NAME.get(s, s)}  {hi:.2f} ms", ""))
+            continue
         body = f"{a['delta_ms'] * 1000:+,.0f} µs ({a['rel']:+.0f}%) vs {a['lo']['n']:,} Services"
         items.append((xs[-1], hi, f"{SHORT.get(s, s)}  {hi:.2f} ms", body))
         if a["grew"] and a["fit_n"] and len(xs) > 2:   # slope written along the rising line
             mid = len(xs) // 2
             ax.annotate(f"≈ {a['fit_n'][0] * 1e6:+,.0f} µs per 1,000 Services",
-                        (xs[mid], pts[mid]["p50_ms"][0]), xytext=(10, -14), textcoords="offset points",
+                        (xs[mid], pts[mid][metric][0]), xytext=(10, -14), textcoords="offset points",
                         fontsize=9.5, color=INK2, ha="left", va="top")
     n_axis(ax, ns)
-    top = max(p["p50_ms"][0] + p["p50_ms"][1] for s in agg for p in agg[s])
+    top = max(p[metric][0] + (0 if minimal else p[metric][1]) for s in agg for p in agg[s])
     ax.set_ylim(0, top * 1.18)
     ax.set_xlim(*draw_xlim(ax, ns))
-    ax.set_ylabel("p50 latency per request (ms)")
     end_labels(ax, items)
+    if minimal:
+        ax.set_ylabel(f"{name} latency (ms)")
+        ax.set_xlabel("number of Services")
+        ax.set_title(head, loc="left", fontsize=14, fontweight="bold", color=INK, pad=14)
+        return
+    ax.set_ylabel(f"{name} latency per request (ms)")
     ax.legend(loc="lower left")
-    titled(ax, head, "Median time per HTTP request, each on a new TCP connection (fortio, keepalive=false).\n"
+    titled(ax, head, f"{lead}, each on a new TCP connection (fortio, keepalive=false).\n"
                      "Client → ClusterIP → server on another node; band = ± SD over runs.")
 
 
@@ -367,11 +385,15 @@ def print_report(agg, st) -> None:
         console.print(f"\nSuggested verdict (check the charts before writing it down): [bold]{v[1]}[/]")
 
 
-def headline(st) -> str:
+def headline(st, metric: str = "p50_ms") -> str:
+    name = METRIC[metric][0]
+    if metric != "p50_ms" and "iptables" in st and "cilium" in st \
+            and st["iptables"]["grew"] and not st["cilium"]["grew"]:
+        return f"{name}: iptables grows with Services, Cilium does not"
     if v := verdict(st):
-        return v[0]
+        return v[0] if metric == "p50_ms" else f"{name}: {v[0]}"
     (s, a), = st.items()
-    return f"{SETUP_LABEL.get(s, s)}: p50 {'grows' if a['grew'] else 'stays flat'} as Services grow"
+    return f"{SETUP_LABEL.get(s, s)}: {name} {'grows' if a['grew'] else 'stays flat'} as Services grow"
 
 
 def save(fig, path: Path) -> None:
@@ -380,7 +402,7 @@ def save(fig, path: Path) -> None:
     console.print(f"chart  -> {path}")
 
 
-def draw_all(agg, st, raw: Path, out: Path, split: bool = True) -> list[Path]:
+def draw_all(agg, st, raw: Path, out: Path, split: bool = True, st99=None) -> list[Path]:
     head = headline(st)
     setups = setups_in(agg)
     written = []
@@ -406,6 +428,14 @@ def draw_all(agg, st, raw: Path, out: Path, split: bool = True) -> list[Path]:
     draw_hero(ax, agg, st, head)
     save(fig, p := Path(f"{base}-1-hero.png"))
     written.append(p)
+
+    for metric, mst in (("p50_ms", st), ("p99_ms", st99)):
+        if not mst:
+            continue
+        fig, ax = plt.subplots(figsize=(11, 6))
+        draw_hero(ax, agg, mst, headline(mst, metric), metric, minimal=True)
+        save(fig, p := Path(f"{base}-slide-{METRIC[metric][0]}.png"))
+        written.append(p)
 
     fig, ax = plt.subplots(figsize=(11, 6))
     draw_why(ax, agg, st)
@@ -437,7 +467,7 @@ def main(argv: list[str] | None = None) -> int:
     st = analyse(agg, rows)
     out = Path(a.out).resolve() if a.out else path.with_suffix(".png")
     raw = Path(a.raw).resolve() if a.raw else path.parent / "raw"
-    draw_all(agg, st, raw, out, split=not a.no_split)
+    draw_all(agg, st, raw, out, split=not a.no_split, st99=analyse(agg, rows, "p99_ms"))
     write_summary(agg, path.with_name(path.stem + "_summary.csv"))
     print_report(agg, st)
     return 0

@@ -1,17 +1,17 @@
 <script setup lang="ts">
 // Intra-node packet path, redrawn from fig:intranode in docs-latex/contents.tex.
-// A looping "packet" stalls at each iptables hook and skims the eBPF steps (revealed on click).
-// Steps ①–④ are the map lookups introduced on 1.5 (BpfMaps), same example Pods.
+// Pods and veths are neutral so the iptables hooks / the eBPF program are the only color.
+// Steps ①–④ are the map lookups introduced on 1.4 (EbpfIntro), same example Pods.
 const props = withDefaults(defineProps<{ mode?: 'both' | 'calico' | 'cilium' }>(), { mode: 'both' })
 const podA = 'Pod A eth0<br><code>frontend</code><br>10.0.1.5'
 const podB = 'Pod B eth0<br><code>backend</code><br>10.0.1.9:8080'
 const nf = [
   { t: podA, c: 'pod' },
-  { t: 'veth<br>(cali*)', c: '' },
+  { t: 'veth<br>(cali*)', c: 'dim' },
   { t: 'PREROUTING<br>(nat, conntrack)', c: 'nf' },
   { t: 'routing +<br>FORWARD<br>(policy chains)', c: 'nf' },
   { t: 'POSTROUTING', c: 'nf' },
-  { t: 'veth', c: '' },
+  { t: 'veth', c: 'dim' },
   { t: podB, c: 'pod' },
 ]
 const steps = [
@@ -37,7 +37,7 @@ const steps = [
       <div class="row">
         <div class="box pod" v-html="podA" />
         <div class="arrow fix" />
-        <div class="box">veth<br>(lxc*)</div>
+        <div class="box dim">veth<br>(lxc*)</div>
         <div class="arrow fix" />
         <div class="bpf-wrap">
           <div class="legend">eBPF @ TC ingress (<span class="mono">lxc*</span>) → <span class="mono">bpf_redirect_peer()</span></div>
@@ -63,7 +63,8 @@ const steps = [
 .title { font-weight: 700; text-align: center; margin: 6px 0 4px; }
 .row { display: flex; align-items: center; position: relative; }
 .box { border: 1px solid #374151; border-radius: 3px; padding: 6px 6px; text-align: center; background: #fff; min-width: 74px; }
-.box.pod { background: #e8eefc; }
+.box.pod { background: #fafafa; border-color: #9ca3af; }
+.box.dim { border-color: #9ca3af; color: #6b7280; }
 .box.nf { background: #ffe9cc; }
 .arrow { flex: 1 0 18px; height: 2px; background: #1f2937; position: relative; margin: 0 2px; }
 .arrow::after { content: ''; position: absolute; right: -1px; top: -4px; border-left: 7px solid #1f2937; border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
@@ -80,28 +81,4 @@ const steps = [
 .mini-arrow { flex: 0 0 12px; height: 2px; background: #1f2937; position: relative; margin: 0 2px; }
 .mini-arrow::after { content: ''; position: absolute; right: -1px; top: -3px; border-left: 5px solid #1f2937; border-top: 4px solid transparent; border-bottom: 4px solid transparent; }
 
-/* Both packets share a 6s loop, so the speed difference is visible side by side. */
-.pkt { position: absolute; top: 50%; left: 2%; width: 13px; height: 13px; margin-top: -6.5px; border-radius: 50%; pointer-events: none; z-index: 1; }
-.pkt.slow { background: #ea580c; box-shadow: 0 0 0 3px #fed7aa; animation: crawl 6s ease-in-out infinite; }
-.pkt.fast { background: #16a34a; box-shadow: 0 0 0 3px #bbf7d0; animation: fly 6s ease-in-out infinite; }
-@keyframes crawl {
-  0% { left: 2%; opacity: 0; }
-  4% { opacity: 1; }
-  14%, 22% { left: 30%; }
-  32%, 42% { left: 45%; }
-  52%, 62% { left: 62%; }
-  85% { left: 96%; opacity: 1; }
-  92%, 100% { left: 96%; opacity: 0; }
-}
-/* Brief taps on steps ①–④, then straight into Pod B. */
-@keyframes fly {
-  0% { left: 2%; opacity: 0; }
-  4% { opacity: 1; }
-  9%, 11% { left: 31%; }
-  14%, 16% { left: 46.5%; }
-  19%, 21% { left: 62%; }
-  24%, 26% { left: 78%; }
-  32% { left: 96%; opacity: 1; }
-  40%, 100% { left: 96%; opacity: 0; }
-}
 </style>

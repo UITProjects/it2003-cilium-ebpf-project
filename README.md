@@ -5,12 +5,12 @@ IT2003.11.CH course project (*Công nghệ Mạng và Truyền thông hiện đ�
 
 **Goal:** measure, on real hardware, how far the theoretical differences between the two Kubernetes datapaths
 show up in practice: Netfilter/iptables (Calico + kube-proxy) versus eBPF (Cilium with kube-proxy replacement).
-Three experiments: Service latency at scale (E1), NetworkPolicy enforcement (E2), and diagnosing dropped
-traffic (E3).
+Three experiments: Service latency at scale (E1), NetworkPolicy segmentation (E2), and runtime security
+with Tetragon (E3).
 
 **Method:** two equivalent 3-node clusters on one Proxmox host, built with the same tooling (Terraform +
 Kubespray v2.31.0, Kubernetes 1.35.8). Each experiment runs the same workload on both clusters. The full
-report (in Vietnamese) is in `docs-latex/`; the slides for the talk are in `presentation/`.
+report (in Vietnamese, written on Overleaf) is in `docs-latex/`; the slides for the talk are in `presentation/`.
 
 ![E1: connection latency vs number of Services](e1/results/e1.png)
 
@@ -22,8 +22,14 @@ E1 headline: from 100 to 10,000 Services, iptables p50 connection latency rose f
 | | question | status | where |
 |---|---|---|---|
 | **E1** | How does connection setup latency to a Service change as the number of Services grows? | done | `e1/` |
-| **E2** | How is NetworkPolicy represented in the kernel by each datapath, and what happens when Pods are added? | in progress (DVWA target app) | `e2/` |
-| **E3** | What does an operator need to find out why a connection was dropped (`iptables -L -v` vs Hubble)? | planned | n/a |
+| **E2** | How is NetworkPolicy represented in the kernel by each datapath, and what happens when Pods are added? | Cilium side: 15 policies deployed and `Valid=True`, drops verified with Hubble; kernel-state before/after scaling and Calico comparison pending | [`e2/cilium/`](e2/cilium/README.md) |
+| **E3** | What can eBPF see inside a compromised workload (process, file access) that a packet firewall cannot? | monitor policies and PoC done, results being written | [`e3/Tetragon/`](e3/Tetragon/README.md) |
+
+E2 segments Google Online Boutique with default deny plus per-service allow rules (identity by label,
+namespace and ServiceAccount): frontend may call Cart, but not Redis or Payment directly. E3 exploits DVWA
+to read the Pod's ServiceAccount token and shows that process-level monitoring catches Command Injection but
+misses File Inclusion (the PHP worker reads the file itself), which needs a file rule on
+`security_file_permission`. E2 and E3 run on the Cilium cluster; Tetragon has no iptables counterpart.
 
 ## Lab topology
 
@@ -45,8 +51,8 @@ flowchart LR
   end
 ```
 
-- **Cilium:** eBPF datapath, `kubeProxyReplacement: true`, Hubble (relay + UI), L2 announcements for
-  LoadBalancer IPs. Helm values: `kubernetes/network/cilium/production.yaml`.
+- **Cilium:** eBPF datapath, `kubeProxyReplacement: true`, Hubble (relay + UI), Tetragon, L2 announcements
+  for LoadBalancer IPs. Helm values: `kubernetes/network/cilium/production.yaml`.
 - **Calico:** iptables datapath, kube-proxy in `iptables` mode (not Kubespray's default `ipvs`).
   Inventory: `infrastructure/configuration/inventory/calico/`.
 - **Pod routing:** both clusters use direct routing, no overlay (Calico: BIRD BGP with IPIP/VXLAN off;
@@ -68,11 +74,25 @@ cd e1
 .venv/bin/python scripts/run-e1.py run iptables   # or without prompts: Setup A (context it2003@calico)
 .venv/bin/python scripts/run-e1.py run cilium     #                     Setup B (context it2003@cilium)
 .venv/bin/python scripts/collect-and-draw-chart.py results/e1.csv
-
-kubectl apply -f e2/manifests/dvwa.yaml    # E2 target app on the Cilium cluster (LB 192.168.40.140)
 ```
 
-Knobs, quick-test mode and how to read the numbers: [`e1/README.md`](e1/README.md).
+E2 and E3, on the Cilium cluster (Online Boutique from `microservices-demo/` deployed in
+`microservices-google-demo`):
+
+```bash
+kubectl apply -f e2/cilium/                # 15 CiliumNetworkPolicy: default deny + allow rules
+kubectl wait -n microservices-google-demo --for=condition=Valid cnp --all --timeout=30s
+hubble observe --namespace microservices-google-demo --verdict DROPPED --follow
+
+kubectl apply -f e2/manifests/dvwa.yaml    # DVWA target app (LB 192.168.40.140)
+kubectl apply -f e2/case_reverse_shell.yaml          # E2: block DVWA reverse-shell callbacks
+kubectl apply -f e3/Tetragon/dvwa-token-monitor.yaml # E3: log ServiceAccount-token reads
+kubectl exec -n kube-system ds/tetragon -c tetragon -- tetra getevents -o compact
+```
+
+Knobs, quick-test mode and how to read the numbers: [`e1/README.md`](e1/README.md). Test scenarios and
+exploit steps: [`e2/cilium/TEST-SCENARIOS.md`](e2/cilium/TEST-SCENARIOS.md),
+[`e3/Tetragon/README.md`](e3/Tetragon/README.md).
 
 Rebuilding the infrastructure from scratch:
 
@@ -86,8 +106,10 @@ Rebuilding the infrastructure from scratch:
 
 ## Presentation
 
-Slidev deck condensed from the report (slide text in Vietnamese, diagram labels in English), with a
-"LIVE DEMO" cue slide for each experiment:
+Slidev deck condensed from the report (slide text in Vietnamese, diagram labels in English), 20 slides:
+1. Foundation (netns/veth/CNI, Kubernetes network model and direct routing, iptables vs eBPF, packet paths),
+2. Experiments (topology, then E1 mechanism → results, E2 identity → segmentation → Hubble/drop evidence,
+E3 Tetragon hooks → attack flow → process log):
 
 ```bash
 cd presentation
@@ -96,8 +118,9 @@ npm run dev        # http://localhost:3030, press P for presenter mode
 npm run export     # PDF (uses playwright-chromium)
 ```
 
-`slides.md` holds the deck; the diagrams (topology, K8s model, packet paths, Service lookup, ...) are
-SVG/Vue components in `presentation/components/`. Slidev is pinned to 52.20.1 because 53+ needs
+`slides.md` holds the deck; the diagrams (topology, K8s model, packet paths, Service lookup, policy
+translation, Tetragon hooks, ...) are Vue components in `presentation/components/`, and evidence
+screenshots are in `presentation/public/`. Slidev is pinned to 52.20.1 because 53+ needs
 Node ≥ 22.12; `.npmrc` (`legacy-peer-deps`) and the `markdown-it` override in `package.json` work around
 npm peer-dependency errors. Keep them unless Node is upgraded.
 
@@ -111,8 +134,10 @@ npm peer-dependency errors. Keep them unless Node is upgraded.
 | `kubernetes/network/` | Cilium Helm chart + values, L2 LB IP pool / announcement policy |
 | `kubernetes/observibility/` | kube-prometheus-stack, Loki, Alloy (metrics + logs, Cilium metrics on) |
 | `e1/` | E1: bench manifest, run/measure/plot scripts, results (CSV, PNG, raw fortio + rule dumps) |
-| `e2/` | E2: manifests (DVWA) |
-| `docs-latex/` | git submodule: LaTeX project report |
+| `e2/cilium/` | E2: 15 CiliumNetworkPolicy for Online Boutique, README, test scenarios, diagrams |
+| `e2/case_*.yaml`, `e2/manifests/` | E2: DVWA app and its reverse-shell / lateral-movement policy cases |
+| `e3/Tetragon/` | E3: Tetragon TracingPolicies (monitor, scoped, enforce sample), PoC, flow diagrams |
+| `docs-latex/` | git submodule: LaTeX project report, synced with Overleaf (build outputs gitignored) |
 | `presentation/` | Slidev slides for the talk (`slides.md`, diagram components in `components/`) |
 | `.agents/skills/slidev/` | Slidev agent skill for AI coding assistants (`npx skills add slidevjs/slidev`) |
 | `microservices-demo/` | git submodule: [Google Online Boutique](https://github.com/GoogleCloudPlatform/microservices-demo), used as a realistic workload |
@@ -122,7 +147,8 @@ npm peer-dependency errors. Keep them unless Node is upgraded.
 
 - Proxmox VE host with SDN, about 6 VMs × 4 vCPU.
 - Terraform with the [bpg/proxmox](https://registry.terraform.io/providers/bpg/proxmox) provider, Ansible.
-- `kubectl`, `helm`, `bash`, Python 3 (matplotlib) on the machine you run experiments from.
+- `kubectl`, `helm`, `bash`, Python 3 (matplotlib) on the machine you run experiments from; Hubble CLI for E2.
+- Tetragon (Helm, `kube-system`) on the Cilium cluster for E3.
 - Node.js ≥ 20.12 and npm for the slides.
 
 ## Safety
@@ -132,7 +158,8 @@ on the lab LoadBalancer IP behind the VPN, never on the internet.
 
 ## References
 
-- Cilium documentation: <https://docs.cilium.io>; Hubble: <https://github.com/cilium/hubble>.
+- Cilium documentation: <https://docs.cilium.io>; Hubble: <https://github.com/cilium/hubble>;
+  Tetragon: <https://tetragon.io/docs/>.
 - Kubespray: <https://github.com/kubernetes-sigs/kubespray>.
 - Kubernetes networking model: <https://kubernetes.io/docs/concepts/services-networking/>.
 - The full bibliography is in `docs-latex/ref.bib`.
