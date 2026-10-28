@@ -124,6 +124,8 @@ roughly 20-40 minutes per setup.
 
 1. `<stem>-1-hero.png`: p50 latency vs number of Services, with the change at the largest N
    labelled on each line and the slope (µs per 1,000 Services) along the rising one.
+   `<stem>-slide-p50.png` / `<stem>-slide-p99.png` are minimal versions for the slides: takeaway title,
+   the two lines and their end values only.
 2. `<stem>-2-why.png`: data-plane size vs number of Services (nat rules vs LB map entries,
    with entries per Service).
 3. `<stem>-3-cdf.png`: the whole latency distribution (from the raw fortio histograms) at the
