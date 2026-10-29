@@ -4,11 +4,18 @@
 // Calico walks straight through the host stack on both nodes. Cilium (BPF host routing) jumps over it:
 // bpf_redirect_neigh() from the lxc* TC program to eth0, then bpf_redirect_peer() from eth0 into the Pod.
 // The host stack stays one abstract box; its hooks are in the speaker notes.
+// Netns frames: the Pod's eth0 is the veth end inside the Pod netns; cali*/lxc*, the stack and the
+// physical eth0 live in the root netns. bpf_redirect_peer() visibly crosses from one into the other.
 const W = 920
 // Node 1 boxes as [x, width]; node 2 mirrors them (x' = W - x - w).
-const L = { pod: [24, 92], veth: [156, 62], stack: [240, 116], nic: [380, 56] } as const
+const L = { pod: [22, 88], veth: [156, 62], stack: [240, 116], nic: [372, 54] } as const
+const NS = { pod: [14, 104], root: [146, 288] } as const
 const m = ([x, w]: readonly [number, number]) => [W - x - w, w] as const
 const R = { pod: m(L.pod), veth: m(L.veth), stack: m(L.stack), nic: m(L.nic) }
+const frames = [
+  { r: NS.pod, c: 'ns-pod', t: 'Pod netns' }, { r: NS.root, c: 'ns-root', t: 'root netns' },
+  { r: m(NS.pod), c: 'ns-pod', t: 'Pod netns' }, { r: m(NS.root), c: 'ns-root', t: 'root netns' },
+]
 const H = 56
 const lanes = [
   { key: 'calico', cy: 125, title: 'Calico · iptables', veth: 'cali*' },
@@ -30,19 +37,25 @@ const pipes = [[L.pod[0] + L.pod[1], L.veth[0]], [R.veth[0] + R.veth[1], R.pod[0
 
 <template>
   <div class="rc">
-    <svg viewBox="0 0 920 382">
+    <svg viewBox="0 0 920 392">
       <defs>
         <marker id="rc-k" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#1f2937" /></marker>
         <marker id="rc-g" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#15803d" /></marker>
       </defs>
 
-      <rect x="10" y="10" width="430" height="362" rx="8" class="node" />
-      <rect x="480" y="10" width="430" height="362" rx="8" class="node" />
+      <rect x="10" y="10" width="430" height="372" rx="8" class="node" />
+      <rect x="480" y="10" width="430" height="372" rx="8" class="node" />
       <text x="24" y="36" class="t-b">Node 1 · fortio client</text>
       <text x="494" y="36" class="t-b">Node 2 · fortio server</text>
 
       <g v-for="ln in lanes" :key="ln.key">
-        <text x="24" :y="ln.cy - H / 2 - 14" class="t-lane mono">{{ ln.title }}</text>
+        <text x="24" :y="ln.cy - 50" class="t-lane mono">{{ ln.title }}</text>
+
+        <!-- network namespaces -->
+        <g v-for="(f, i) in frames" :key="`f${i}`">
+          <rect :x="f.r[0]" :y="ln.cy - 36" :width="f.r[1]" height="82" rx="7" :class="f.c" />
+          <text :x="f.r[0] + 6" :y="ln.cy + 41" class="t-xs mono" :class="`${f.c}-t`">{{ f.t }}</text>
+        </g>
 
         <!-- Pods + veth pairs -->
         <g v-for="(p, i) in [L.pod, R.pod]" :key="`p${i}`">
@@ -52,7 +65,7 @@ const pipes = [[L.pod[0] + L.pod[1], L.veth[0]], [R.veth[0] + R.veth[1], R.pod[0
         </g>
         <g v-for="(seg, i) in pipes" :key="`v${i}`">
           <rect :x="seg[0]" :y="ln.cy - 5" :width="seg[1] - seg[0]" height="10" class="pipe" :class="{ faint: ln.key === 'cilium' && i === 1 }" />
-          <text :x="(seg[0] + seg[1]) / 2" :y="ln.cy + 22" class="t-xs muted" text-anchor="middle">veth</text>
+          <text :x="(seg[0] + seg[1]) / 2" :y="ln.cy - 10" class="t-xs muted" text-anchor="middle">veth</text>
         </g>
 
         <!-- host-side veth -->
@@ -100,8 +113,12 @@ const pipes = [[L.pod[0] + L.pod[1], L.veth[0]], [R.veth[0] + R.veth[1], R.pod[0
 </template>
 
 <style scoped>
-.rc svg { width: 100%; height: auto; display: block; margin: 0 auto; max-height: 382px; }
+.rc svg { width: 100%; height: auto; display: block; margin: 0 auto; max-height: 392px; }
 .node { fill: #f8fafc; stroke: #374151; stroke-width: 1.5; }
+.ns-pod { fill: #f5f8ff; stroke: #93c5fd; stroke-width: 1.3; stroke-dasharray: 4 3; }
+.ns-root { fill: #fff; stroke: #9ca3af; stroke-width: 1.3; stroke-dasharray: 4 3; }
+.ns-pod-t { fill: #2563eb; }
+.ns-root-t { fill: #6b7280; }
 .pod { fill: #e8eefc; stroke: #374151; }
 .box { fill: #fff; stroke: #374151; }
 .nf { fill: #ffe9cc; stroke: #374151; }
