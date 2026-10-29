@@ -1,75 +1,98 @@
 <script setup lang="ts">
-// Slide 2.1.2 (E1): the E1 request path across nodes (fortio client on one worker → ClusterIP → server on the other).
-// Calico: the packet climbs the host network stack (Netfilter + routing) on both nodes.
-// Cilium (BPF host routing): TC programs forward it with bpf_redirect_neigh / bpf_redirect_peer, so the
-// host stack is bypassed and the packet lands straight in the server Pod's netns.
-// One CSS grid for both lanes so the node columns line up; node backgrounds span every row.
-const nf1 = ['PREROUTING · DNAT<br><span class="mono">KUBE-SERVICES</span> O(n)', 'routing (FIB)', 'FORWARD (policy)', 'POSTROUTING']
-const nf2 = ['PREROUTING', 'routing (FIB)', 'FORWARD (policy)', 'POSTROUTING']
-const bpf1 = ['policy · conntrack', '<span class="mono">bpf_fib_lookup()</span>', '<span class="mono">bpf_redirect_neigh()</span> → eth0']
-const bpf2 = ['policy · conntrack', '<span class="mono">bpf_redirect_peer()</span> → Pod eth0']
+// Slide 2.1.2 (E1): the E1 request path across nodes (fortio client on node 1 → server on node 2).
+// Both lanes draw the same boxes: Pod eth0 ─veth pair─ host-side veth → host network stack → eth0.
+// Calico walks straight through the host stack on both nodes. Cilium (BPF host routing) jumps over it:
+// bpf_redirect_neigh() from the lxc* TC program to eth0, then bpf_redirect_peer() from eth0 into the Pod.
+// The host stack stays one abstract box; its hooks are in the speaker notes.
+const W = 920
+// Node 1 boxes as [x, width]; node 2 mirrors them (x' = W - x - w).
+const L = { pod: [24, 92], veth: [156, 62], stack: [240, 116], nic: [380, 56] } as const
+const m = ([x, w]: readonly [number, number]) => [W - x - w, w] as const
+const R = { pod: m(L.pod), veth: m(L.veth), stack: m(L.stack), nic: m(L.nic) }
+const H = 56
+const lanes = [
+  { key: 'calico', cy: 125, title: 'Calico · iptables', veth: 'cali*' },
+  { key: 'cilium', cy: 320, title: 'Cilium · eBPF', veth: 'lxc*' },
+]
+const cy2 = lanes[1].cy
+const top2 = cy2 - H / 2
+const cx = ([x, w]: readonly [number, number]) => x + w / 2
+// Cilium bypass arcs, from the top of one box to the top of another.
+const arc1 = `M${cx(L.veth)},${top2} C${cx(L.veth) + 40},${top2 - 80} ${cx(L.nic) - 40},${top2 - 80} ${cx(L.nic)},${top2 - 2}`
+const arc2 = `M${cx(R.nic)},${top2} C${cx(R.nic) + 60},${top2 - 80} ${cx(R.pod) - 60},${top2 - 80} ${cx(R.pod)},${top2 - 2}`
+// Calico's straight hops between neighbouring boxes, as [from, to] x-coordinates.
+const hops = [
+  [L.veth[0] + L.veth[1], L.stack[0]], [L.stack[0] + L.stack[1], L.nic[0]],
+  [R.nic[0] + R.nic[1], R.stack[0]], [R.stack[0] + R.stack[1], R.veth[0]],
+]
+const pipes = [[L.pod[0] + L.pod[1], L.veth[0]], [R.veth[0] + R.veth[1], R.pod[0]]]
 </script>
 
 <template>
   <div class="rc">
-    <div class="node n1" />
-    <div class="node n2" />
-    <div class="nh h1">Node 1 · <span class="mono">10.244.1.0/24</span> · fortio client</div>
-    <div class="nh hw">L2<br>no encap</div>
-    <div class="nh h2">Node 2 · <span class="mono">10.244.2.0/24</span> · fortio server</div>
+    <svg viewBox="0 0 920 382">
+      <defs>
+        <marker id="rc-k" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#1f2937" /></marker>
+        <marker id="rc-g" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#15803d" /></marker>
+      </defs>
 
-    <!-- Calico / iptables -->
-    <div class="lane l1">Calico · kube-proxy iptables</div>
-    <div class="box pod r1 c1">client<br>Pod</div>
-    <div class="arrow r1 c2" />
-    <div class="box dim r1 c3 mono">cali*</div>
-    <div class="arrow r1 c4" />
-    <div class="grp nf r1 c5">
-      <div class="gt">host network stack</div>
-      <div v-for="s in nf1" :key="s" class="it" v-html="s" />
-    </div>
-    <div class="arrow r1 c6" />
-    <div class="box nic r1 c7 mono">eth0</div>
-    <div class="wire r1 c8" />
-    <div class="box nic r1 c9 mono">eth0</div>
-    <div class="arrow r1 c10" />
-    <div class="grp nf r1 c11">
-      <div class="gt">host network stack</div>
-      <div v-for="s in nf2" :key="s" class="it" v-html="s" />
-    </div>
-    <div class="arrow r1 c12" />
-    <div class="box dim r1 c13 mono">cali*</div>
-    <div class="arrow r1 c14" />
-    <div class="box pod r1 c15">server<br>Pod</div>
+      <rect x="10" y="10" width="430" height="362" rx="8" class="node" />
+      <rect x="480" y="10" width="430" height="362" rx="8" class="node" />
+      <text x="24" y="36" class="t-b">Node 1 · fortio client</text>
+      <text x="494" y="36" class="t-b">Node 2 · fortio server</text>
 
-    <!-- Cilium / eBPF -->
-    <div class="lane l2">Cilium · eBPF host routing</div>
-    <div class="box pod r2 c1">client<br>Pod</div>
-    <div class="arrow r2 c2" />
-    <div class="box dim r2 c3 mono">lxc*</div>
-    <div class="arrow r2 c4" />
-    <div class="grp bpf r2 c5">
-      <div class="gt">eBPF @ TC (<span class="mono">lxc*</span>)</div>
-      <div v-for="s in bpf1" :key="s" class="it" v-html="s" />
-    </div>
-    <div class="arrow r2 c6" />
-    <div class="box nic r2 c7 mono">eth0</div>
-    <div class="wire r2 c8" />
-    <div class="box nic r2 c9 mono">eth0</div>
-    <div class="arrow r2 c10" />
-    <div class="grp bpf r2 c11s">
-      <div class="gt">eBPF @ TC ingress (<span class="mono">eth0</span>)</div>
-      <div v-for="s in bpf2" :key="s" class="it" v-html="s" />
-    </div>
-    <div class="arrow r2 c14" />
-    <div class="box pod r2 c15">server<br>Pod</div>
+      <g v-for="ln in lanes" :key="ln.key">
+        <text x="24" :y="ln.cy - H / 2 - 14" class="t-lane mono">{{ ln.title }}</text>
 
-    <div class="tag r3 c1to3">Service → backend:<br>LB map O(1)</div>
-    <div class="skip r3 c5"><s>Netfilter · host routing</s> bypassed</div>
-    <div class="skip r3 c11s"><s>Netfilter · host routing · <span class="mono">lxc*</span></s> bypassed</div>
+        <!-- Pods + veth pairs -->
+        <g v-for="(p, i) in [L.pod, R.pod]" :key="`p${i}`">
+          <rect :x="p[0]" :y="ln.cy - H / 2" :width="p[1]" :height="H" rx="6" class="pod" />
+          <text :x="cx(p)" :y="ln.cy - 4" class="t-b" text-anchor="middle">{{ i === 0 ? 'client' : 'server' }} Pod</text>
+          <text :x="cx(p)" :y="ln.cy + 15" class="t-sm mono" text-anchor="middle">eth0</text>
+        </g>
+        <g v-for="(seg, i) in pipes" :key="`v${i}`">
+          <rect :x="seg[0]" :y="ln.cy - 5" :width="seg[1] - seg[0]" height="10" class="pipe" :class="{ faint: ln.key === 'cilium' && i === 1 }" />
+          <text :x="(seg[0] + seg[1]) / 2" :y="ln.cy + 22" class="t-xs muted" text-anchor="middle">veth</text>
+        </g>
+
+        <!-- host-side veth -->
+        <g v-for="(v, i) in [L.veth, R.veth]" :key="`h${i}`">
+          <rect :x="v[0]" :y="ln.cy - H / 2" :width="v[1]" :height="H" rx="6"
+                :class="ln.key === 'calico' ? 'box' : i === 0 ? 'bpf' : 'skip'" />
+          <text :x="cx(v)" :y="ln.cy + (ln.key === 'cilium' && i === 0 ? -4 : 5)" class="t-sm mono" :class="{ muted: ln.key === 'cilium' && i === 1 }" text-anchor="middle">{{ ln.veth }}</text>
+          <text v-if="ln.key === 'cilium' && i === 0" :x="cx(v)" :y="ln.cy + 14" class="t-xs g-t" text-anchor="middle">eBPF TC</text>
+        </g>
+
+        <!-- host network stack: kept abstract -->
+        <g v-for="(s, i) in [L.stack, R.stack]" :key="`s${i}`">
+          <rect :x="s[0]" :y="ln.cy - H / 2" :width="s[1]" :height="H" rx="6" :class="ln.key === 'calico' ? 'nf' : 'skip'" />
+          <text :x="cx(s)" :y="ln.cy - 4" class="t-b" :class="{ muted: ln.key === 'cilium' }" text-anchor="middle">host network</text>
+          <text :x="cx(s)" :y="ln.cy + 14" class="t-b" :class="{ muted: ln.key === 'cilium' }" text-anchor="middle">stack</text>
+        </g>
+
+        <!-- NICs + wire -->
+        <g v-for="(n, i) in [L.nic, R.nic]" :key="`n${i}`">
+          <rect :x="n[0]" :y="ln.cy - H / 2" :width="n[1]" :height="H" rx="6" :class="ln.key === 'cilium' && i === 1 ? 'bpf' : 'box'" />
+          <text :x="cx(n)" :y="ln.cy + (ln.key === 'cilium' && i === 1 ? -4 : 5)" class="t-sm mono" text-anchor="middle">eth0</text>
+          <text v-if="ln.key === 'cilium' && i === 1" :x="cx(n)" :y="ln.cy + 14" class="t-xs g-t" text-anchor="middle">eBPF TC</text>
+        </g>
+        <line :x1="L.nic[0] + L.nic[1]" :x2="R.nic[0] - 2" :y1="ln.cy" :y2="ln.cy" class="wire" marker-end="url(#rc-k)" />
+        <text x="460" :y="ln.cy - 10" class="t-xs muted" text-anchor="middle">L2</text>
+
+        <template v-if="ln.key === 'calico'">
+          <line v-for="(h, i) in hops" :key="`a${i}`" :x1="h[0]" :x2="h[1] - 2" :y1="ln.cy" :y2="ln.cy" class="hop" marker-end="url(#rc-k)" />
+        </template>
+      </g>
+
+      <!-- Cilium: the bypass -->
+      <path :d="arc1" class="jump" marker-end="url(#rc-g)" />
+      <path :d="arc2" class="jump" marker-end="url(#rc-g)" />
+      <text :x="(cx(L.veth) + cx(L.nic)) / 2" :y="top2 - 66" class="t-sm mono g-t b" text-anchor="middle">bpf_redirect_neigh()</text>
+      <text :x="(cx(R.nic) + cx(R.pod)) / 2" :y="top2 - 66" class="t-sm mono g-t b" text-anchor="middle">bpf_redirect_peer()</text>
+    </svg>
 
     <div class="legend">
-      <span class="i"><i class="bx nf" /> Netfilter / routing in host stack</span>
+      <span class="i"><i class="bx nf" /> host network stack (Netfilter + routing)</span>
       <span class="i"><i class="bx bpf" /> eBPF program at TC</span>
       <span class="i"><i class="bx skip" /> bypassed</span>
     </div>
@@ -77,62 +100,33 @@ const bpf2 = ['policy · conntrack', '<span class="mono">bpf_redirect_peer()</sp
 </template>
 
 <style scoped>
-.rc {
-  display: grid; color: #1f2937; font-size: 12px; line-height: 1.2; column-gap: 0; row-gap: 4px;
-  grid-template-columns: 70px 18px 50px 18px 1fr 18px 46px 84px 46px 18px 1fr 18px 50px 18px 70px;
-  grid-template-rows: auto auto auto auto auto auto;
-}
+.rc svg { width: 100%; height: auto; display: block; margin: 0 auto; max-height: 382px; }
+.node { fill: #f8fafc; stroke: #374151; stroke-width: 1.5; }
+.pod { fill: #e8eefc; stroke: #374151; }
+.box { fill: #fff; stroke: #374151; }
+.nf { fill: #ffe9cc; stroke: #374151; }
+.bpf { fill: #dcf5dc; stroke: #374151; }
+.skip { fill: #f8fafc; stroke: #9ca3af; stroke-dasharray: 5 4; }
+.pipe { fill: #e5e7eb; stroke: #374151; }
+.pipe.faint { fill: #f8fafc; stroke: #9ca3af; }
+.wire { stroke: #374151; stroke-width: 3; }
+.hop { stroke: #1f2937; stroke-width: 2; }
+.jump { fill: none; stroke: #15803d; stroke-width: 3; stroke-dasharray: 8 5; animation: dash 0.9s linear infinite; }
+@keyframes dash { to { stroke-dashoffset: -13; } }
+text { fill: #1f2937; }
+.t-b { font-size: 13px; font-weight: 700; }
+.t-lane { font-size: 14px; font-weight: 700; }
+.t-sm { font-size: 12px; }
+.t-xs { font-size: 10.5px; }
 .mono { font-family: var(--slidev-code-font-family, monospace); }
-:deep(.mono) { font-family: var(--slidev-code-font-family, monospace); font-size: 10.5px; }
+.muted { fill: #9ca3af; }
+.g-t { fill: #15803d; }
+.b { font-weight: 700; }
 
-/* node backgrounds behind both lanes */
-.node { grid-row: 1 / 7; background: #f8fafc; border: 1.5px solid #374151; border-radius: 8px; margin: 0 -8px; }
-.n1 { grid-column: 1 / 8; }
-.n2 { grid-column: 9 / 16; }
-.nh { grid-row: 1; font-weight: 700; font-size: 13px; padding: 6px 0 0; z-index: 1; }
-.h1 { grid-column: 1 / 8; }
-.h2 { grid-column: 9 / 16; }
-.hw { grid-column: 8; text-align: center; font-size: 10.5px; font-weight: 400; color: #6b7280; padding-top: 6px; line-height: 1.15; }
-
-.lane { grid-column: 1 / 16; justify-self: center; background: #fff; border: 1px solid #374151; border-radius: 12px; padding: 1px 12px; text-align: center; font-weight: 700; font-size: 13.5px; z-index: 1; font-family: var(--slidev-code-font-family, monospace); }
-.l1 { grid-row: 2; }
-.l2 { grid-row: 4; margin-top: 2px; }
-.r1 { grid-row: 3; }
-.r2 { grid-row: 5; }
-.r3 { grid-row: 6; margin-bottom: 6px; }
-.c1 { grid-column: 1; } .c2 { grid-column: 2; } .c3 { grid-column: 3; } .c4 { grid-column: 4; }
-.c5 { grid-column: 5; } .c6 { grid-column: 6; } .c7 { grid-column: 7; } .c8 { grid-column: 8; }
-.c9 { grid-column: 9; } .c10 { grid-column: 10; } .c11 { grid-column: 11; } .c12 { grid-column: 12; }
-.c13 { grid-column: 13; } .c14 { grid-column: 14; } .c15 { grid-column: 15; }
-.c11s { grid-column: 11 / 14; }
-.c1to3 { grid-column: 1 / 4; }
-
-.box, .grp, .arrow, .wire, .tag, .skip { z-index: 1; }
-.box { align-self: center; border: 1px solid #374151; border-radius: 4px; padding: 6px 4px; text-align: center; background: #fff; }
-.box.pod { background: #e8eefc; font-weight: 700; }
-.box.dim { border-color: #9ca3af; color: #6b7280; font-size: 11px; }
-.box.nic { font-size: 11px; }
-
-.grp { border: 1px solid #374151; border-radius: 6px; padding: 4px 6px 6px; }
-.grp.nf { background: #ffe9cc; align-self: center; }
-.grp.bpf { background: #dcf5dc; align-self: center; }
-.gt { font-weight: 700; text-align: center; font-size: 11.5px; margin-bottom: 3px; }
-.it { background: #fff; border: 1px solid #374151; border-radius: 3px; padding: 1px 4px; margin-top: 3px; text-align: center; font-size: 11px; }
-.nf .it:first-of-type { margin-top: 0; }
-
-.arrow { align-self: center; height: 2px; background: #1f2937; position: relative; margin: 0 3px; }
-.arrow::after { content: ''; position: absolute; right: -1px; top: -4px; border-left: 7px solid #1f2937; border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
-.wire { align-self: center; height: 4px; background: #374151; position: relative; margin: 0 2px; }
-.wire::after { content: ''; position: absolute; right: -2px; top: -4px; border-left: 8px solid #374151; border-top: 6px solid transparent; border-bottom: 6px solid transparent; }
-
-.tag { align-self: start; text-align: center; font-size: 10.5px; color: #166534; background: #dcf5dc; border: 1px dashed #15803d; border-radius: 4px; padding: 2px 3px; margin-right: 6px; }
-.skip { align-self: start; text-align: center; font-size: 10.5px; color: #6b7280; border: 1.2px dashed #9ca3af; border-radius: 4px; padding: 3px 4px; }
-.skip s { text-decoration-color: #9ca3af; }
-
-.legend { grid-column: 1 / 16; grid-row: 7; display: flex; justify-content: center; gap: 1.4rem; font-size: 0.78rem; margin-top: 6px; }
+.legend { display: flex; justify-content: center; gap: 1.4rem; font-size: 0.78rem; margin-top: 8px; color: #1f2937; }
 .legend .i { display: inline-flex; align-items: center; gap: 0.4rem; }
 .legend .bx { width: 13px; height: 13px; border-radius: 3px; border: 1px solid #374151; display: inline-block; }
 .legend .bx.nf { background: #ffe9cc; }
 .legend .bx.bpf { background: #dcf5dc; }
-.legend .bx.skip { background: #fff; border: 1.2px dashed #9ca3af; }
+.legend .bx.skip { background: #f8fafc; border: 1.2px dashed #9ca3af; }
 </style>
