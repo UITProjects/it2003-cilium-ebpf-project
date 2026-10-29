@@ -59,6 +59,13 @@ const steps = [
 
 <style scoped>
 .single { padding: 64px 0 40px; }
+/* Both lanes on one slide (1.4): more air between lanes and taller boxes so the diagram fills the slide. */
+.paths:not(.single) { padding: 30px 0 8px; font-size: 12.5px; }
+.paths:not(.single) .title { margin: 0 0 12px; font-size: 14px; }
+.paths:not(.single) > div > .title { margin-top: 44px; }
+.paths:not(.single) .sn { white-space: nowrap; }
+.paths:not(.single) .box { padding: 12px 6px; }
+.paths:not(.single) .step { padding: 8px 4px; }
 .paths { font-size: 12px; line-height: 1.25; }
 .title { font-weight: 700; text-align: center; margin: 6px 0 4px; }
 .row { display: flex; align-items: center; position: relative; }

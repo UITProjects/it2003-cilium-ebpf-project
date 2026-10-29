@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Slide 2.1: iptables = a chain of rules matched one by one. The first packet (SYN) walks
+// Slide 1.2: iptables = a chain of rules matched one by one (generic chain; KUBE-SERVICES itself is on 2.1.1). The first packet (SYN) walks
 // the chain until a rule matches, then DNAT; conntrack stores that decision so the next
 // packets of the same connection skip the chain. Netfilter hook detail lives in the notes.
 </script>
@@ -17,7 +17,7 @@
     <text x="62" y="111" class="t-s muted" text-anchor="middle">SYN</text>
 
     <rect x="140" y="30" width="400" height="128" rx="10" class="grp" />
-    <text x="154" y="50" class="t-cap">KUBE-SERVICES chain</text>
+    <text x="154" y="50" class="t-cap">chain · table nat</text>
     <path d="M112,98 H160" class="edge" marker-end="url(#ic-a)" />
 
     <rect x="160" y="74" width="86" height="48" rx="7" class="rule" />
