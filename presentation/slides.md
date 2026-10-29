@@ -205,13 +205,33 @@ Cập nhật: iptables-restore giữ khoá xtables, chậm theo kích thước t
 
 ---
 
-# 2.1.2 E1 · Kết quả
+# 2.1.2 E1 · Routing: network stack vs eBPF redirect
+
+<RoutingCompare />
+
+<div class="text-center mt-3">
+
+<span class="hl">iptables: qua **network stack của host** ở cả hai node · eBPF: redirect thẳng vào **veth của Pod đích**</span>
+
+</div>
+
+<!--
+Bổ sung cho sơ đồ ở 1.1: route giữa các node giống nhau (direct routing), khác nhau ở chỗ packet được xử lý trong node.
+Calico: Pod → cali* → host stack (PREROUTING: kube-proxy DNAT qua KUBE-SERVICES, routing, FORWARD, POSTROUTING) → eth0; node 2 lặp lại host stack rồi vào cali* → Pod.
+Cilium (BPF host routing, khi được bật và kernel hỗ trợ): eBPF tại TC của lxc* làm policy/conntrack, bpf_fib_lookup() rồi bpf_redirect_neigh() ra eth0; ở node 2, eBPF tại TC ingress của eth0 gọi bpf_redirect_peer() đưa packet thẳng vào netns của Pod.
+Service trên Cilium: ClusterIP → backend được dịch ngay khi client gọi connect() (LB map), nên packet rời Pod đã mang IP backend.
+Lưu ý: E1 đo khác biệt do Service lookup (O(n) vs hash). Phần bypass routing giảm chi phí per-packet nhưng E1 không tách riêng: ở N = 100, p50 iptables 2.33 ms, Cilium 2.48 ms, tức không thấy lợi thế đo được từ routing ở quy mô nhỏ.
+-->
+
+---
+
+# 2.1.3 E1 · Kết quả
 
 <img src="/e1-hero.png" class="mx-auto" style="max-height:440px" v-motion :initial="{ y: 40, opacity: 0 }" :enter="{ y: 0, opacity: 1, transition: { duration: 600 } }" />
 
 ---
 
-# 2.1.3 E1 · Độ trễ đuôi (p99)
+# 2.1.4 E1 · Độ trễ đuôi (p99)
 
 <img src="/e1-hero-p99.png" class="mx-auto" style="max-height:440px" v-motion :initial="{ y: 40, opacity: 0 }" :enter="{ y: 0, opacity: 1, transition: { duration: 600 } }" />
 
@@ -223,7 +243,7 @@ Lợi thế của eBPF ở p99 là khả năng mở rộng, không phải mọi 
 
 ---
 
-# 2.1.4 E1 · Toàn bộ phân phối độ trễ
+# 2.1.5 E1 · Toàn bộ phân phối độ trễ
 
 <img src="/e1-cdf.png" class="w-full" v-motion :initial="{ y: 40, opacity: 0 }" :enter="{ y: 0, opacity: 1, transition: { duration: 600 } }" />
 
@@ -291,17 +311,11 @@ Nguồn: https://docs.cilium.io/en/stable/observability/hubble/hubble-cli/
 -->
 
 ---
+layout: center
+class: text-center
+---
 
-# 2.2.4 E2 · Cilium ghi nhận kết nối bị policy chặn
-
-<div class="text-base muted mb-5">Quan sát packet bị drop bằng <code>cilium-dbg monitor --type drop -v</code>.</div>
-
-<DropMonitorExplain />
-
-<!--
-Ảnh người dùng cung cấp. Không suy diễn đây là frontend tới Redis/Payment, hoặc gán cho policy YAML cụ thể khi chưa đối chiếu identity, Pod, policy và thời điểm.
-Không khẳng định reverse shell đã được kiểm thử chỉ từ địa chỉ và cổng trong ảnh.
--->
+# 2.2.4 E2 · Demo
 
 ---
 
@@ -340,27 +354,11 @@ Trong E3, Tetragon theo dõi hook security_file_permission để bắt việc đ
 </div>
 
 ---
+layout: center
+class: text-center
+---
 
-# 2.3.3 E3 · Ghi nhận process từ Command Injection
-
-<div class="text-base muted mb-6">DVWA thực thi lệnh; Tetragon ghi nhận các process phát sinh trong Pod.</div>
-
-<img src="/e3-command-injection-process.png" class="w-full rounded" alt="Log Tetragon trong Pod DVWA: process và exit của shell, ping và id" />
-
-<div class="text-base mt-6 leading-relaxed">
-
-- **Process:** `/bin/sh` khởi chạy `ping` và `id`; log hiển thị binary và arguments.
-- **Exit:** ghi nhận kết thúc process; các dòng trong ảnh có exit status `0`.
-
-</div>
-
-<div class="text-sm muted mt-4">Bằng chứng cho giám sát process; ảnh này chưa thể hiện thao tác đọc file hay phát hiện File Inclusion.</div>
-
-<!--
-Ảnh do người dùng cung cấp. Lệnh tetra getevents lọc theo Pod DVWA; ví dụ shell chạy ping và id.
-Không diễn giải log này thành bằng chứng đọc ca.crt/token, chặn lệnh hay file-access event.
-Liên hệ bước 1 ở slide trước: Command Injection tạo process mới nên được ghi nhận; LFI đọc trực tiếp trong PHP worker cần bổ sung rule file.
--->
+# 2.3.3 E3 · Demo
 
 ---
 layout: center
