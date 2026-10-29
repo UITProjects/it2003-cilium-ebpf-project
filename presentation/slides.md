@@ -143,11 +143,10 @@ Cilium: chương trình eBPF ở phía host của veth (lxc*) dùng conntrack, i
 Không coi các ô là thứ tự hook cố định; policy có thể thực thi ở phía endpoint nguồn hoặc đích tùy hướng traffic/cấu hình. Không suy ra kết quả hiệu năng từ hình; E1 trình bày phép đo.
 -->
 ---
-clicks: 5
 transition: slide-up | slide-down
 ---
 
-# 2. Thực nghiệm · Topology homelab
+# 2. Thực nghiệm · Infrastructure
 
 <div class="tiny muted -mt-3 mb-1">Terraform (bpg/proxmox) · Ansible · Kubespray · Cilium bằng Helm. Hai cụm 3 node song song, VM giống hệt nhau (4 vCPU, 4 GiB, 120 GB, Ubuntu 24.04, kernel 6.8).</div>
 
