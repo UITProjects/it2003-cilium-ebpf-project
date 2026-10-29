@@ -3,7 +3,6 @@
     <defs><marker id="tf-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#94a3b8" /></marker></defs>
     <line x1="300" y1="20" x2="300" y2="224" class="divider" />
     <line x1="600" y1="20" x2="600" y2="224" class="divider" />
-
     <text x="20" y="34" class="number">01</text>
     <text x="64" y="34" class="title">Command Injection</text>
     <text x="20" y="67" class="body">Lệnh đọc ca.crt / token</text>
@@ -15,7 +14,6 @@
     <path d="M24,204 L27,207 L32,201" class="check" />
     <text x="46" y="208" class="result green">Ghi nhận process_exec</text>
     <text x="20" y="230" class="detail">Chưa có sự kiện đọc file riêng</text>
-
     <text x="320" y="34" class="number amber">02</text>
     <text x="364" y="34" class="title">File Inclusion</text>
     <text x="320" y="67" class="body">Upload PHP → include file</text>
@@ -27,7 +25,6 @@
     <text x="328" y="208" class="bang" text-anchor="middle">!</text>
     <text x="346" y="208" class="result amber">Bỏ sót thao tác đọc file</text>
     <text x="320" y="230" class="detail">Khi chỉ giám sát process</text>
-
     <text x="620" y="34" class="number">03</text>
     <text x="664" y="34" class="title">Thêm rule file</text>
     <text x="620" y="67" class="body">Lặp lại cùng request LFI</text>
@@ -39,7 +36,6 @@
     <path d="M624,204 L627,207 L632,201" class="check" />
     <text x="646" y="208" class="result green">Phát hiện file-access event</text>
     <text x="620" y="230" class="detail">Đường dẫn + PHP worker + Pod</text>
-
     <text x="450" y="261" class="footer" text-anchor="middle">TETRAGON · MONITOR ONLY · GHI NHẬN SỰ KIỆN</text>
   </svg>
 </template>

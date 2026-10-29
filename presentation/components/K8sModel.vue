@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Kubernetes network model: two nodes, each with its own Pod CIDR.
-// Clicks: 1 intra-node flow, 2 node-to-node flow (no NAT) + the direct route to the peer's Pod CIDR,
-// 3 Service ClusterIP = DNAT rule on every node.
+// No clicks, all shown at once: ① intra-node flow, ② node-to-node flow (no NAT) + the direct route to the
+// peer's Pod CIDR, and the Service ClusterIP = DNAT rule on every node.
 const nodes = [
   { x: 20, name: 'Node 1 · 192.168.40.161', cidr: 'podCIDR 10.244.1.0/24', eth: '.161', route: '10.244.2.0/24 via 192.168.40.162', pods: [['Pod A', '10.244.1.10'], ['Pod B', '10.244.1.11']] },
   { x: 480, name: 'Node 2 · 192.168.40.162', cidr: 'podCIDR 10.244.2.0/24', eth: '.162', route: '10.244.1.0/24 via 192.168.40.161', pods: [['Pod C', '10.244.2.20'], ['Pod D', '10.244.2.21']] },
@@ -30,12 +30,12 @@ const inter = 'M135,122 V198 H270 V380 H730 V198 H580 V122'
         <line :x1="n.x + 100 + i * 220" :x2="n.x + 100 + i * 220" y1="122" y2="170" class="wire" />
         <text :x="n.x + 80 + i * 220" y="152" class="t-xs" text-anchor="end">veth</text>
         <rect :x="n.x + 25 + i * 220" y="62" width="150" height="60" rx="6" class="pod" />
-        <text :x="n.x + 100 + i * 220" y="86" class="t-b" text-anchor="middle">{{ p[0] }}</text>
-        <text :x="n.x + 100 + i * 220" y="106" class="t-sm mono" text-anchor="middle">eth0 {{ p[1] }}</text>
+        <text :x="n.x + 100 + i * 220" y="86" class="t-b" :class="{ faint: p[0] === 'Pod D' }" text-anchor="middle">{{ p[0] }}</text>
+        <text :x="n.x + 100 + i * 220" y="106" class="t-sm mono" :class="{ faint: p[0] === 'Pod D' }" text-anchor="middle">eth0 {{ p[1] }}</text>
       </g>
       <!-- root netns -->
       <rect :x="n.x + 20" y="170" width="380" height="80" rx="6" class="host" />
-      <text :x="n.x + 32" y="242" class="t-xs">root netns · routing · iptables / eBPF</text>
+      <text :x="n.x + 32" y="242" class="t-xs muted">root netns · routing · iptables / eBPF</text>
       <!-- eth0 -->
       <line :x1="n.x + 250" :x2="n.x + 250" y1="250" y2="276" class="wire" />
       <line :x1="n.x + 250" :x2="n.x + 250" y1="310" y2="380" class="wire" />
@@ -44,14 +44,14 @@ const inter = 'M135,122 V198 H270 V380 H730 V198 H580 V122'
     </g>
 
     <!-- 1: intra-node -->
-    <g v-click>
+    <g>
       <path :d="intra" class="flow green" marker-end="url(#k8s-g)" />
       <text x="230" y="160" class="t-sm green-t" text-anchor="middle">① intra-node</text>
       <circle r="6" class="dot green-d"><animateMotion :path="intra" dur="2.6s" repeatCount="indefinite" /></circle>
     </g>
 
     <!-- 2: node-to-node -->
-    <g v-click>
+    <g>
       <path :d="inter" class="flow blue" marker-end="url(#k8s-b)" />
       <g v-for="n in nodes" :key="`rt${n.name}`">
         <rect :x="n.x + 28" y="206" width="212" height="22" rx="4" class="hdr" />
@@ -63,7 +63,7 @@ const inter = 'M135,122 V198 H270 V380 H730 V198 H580 V122'
     </g>
 
     <!-- 3: Service -->
-    <g v-click>
+    <g>
       <g v-for="n in nodes" :key="`svc${n.name}`">
         <rect :x="n.x + 262" y="204" width="134" height="26" rx="4" class="svc" />
         <text :x="n.x + 329" y="215" class="t-xs mono" text-anchor="middle">ClusterIP 10.96.0.10</text>
@@ -75,11 +75,11 @@ const inter = 'M135,122 V198 H270 V380 H730 V198 H580 V122'
 
 <style scoped>
 .k8s { width: 100%; height: auto; display: block; margin: 0 auto; max-height: 420px; }
-.node { fill: #f8fafc; stroke: #374151; stroke-width: 1.5; }
-.pod { fill: #e8eefc; stroke: #374151; }
-.host { fill: #f1f5f9; stroke: #6b7280; }
+.node { fill: #fafafa; stroke: #9ca3af; stroke-width: 1.5; }
+.pod { fill: #fff; stroke: #9ca3af; }
+.host { fill: #f5f5f5; stroke: #d1d5db; }
 .nic { fill: #fff; stroke: #374151; }
-.svc { fill: #f5f3ff; stroke: #7c3aed; stroke-dasharray: 4 3; }
+.svc { fill: #fafafa; stroke: #9ca3af; stroke-dasharray: 4 3; }
 .hdr { fill: #eff6ff; stroke: #93c5fd; }
 .wire { stroke: #374151; stroke-width: 1.4; }
 .wire.thick { stroke-width: 3; }
@@ -98,4 +98,6 @@ text { fill: #1f2937; }
 .mono { font-family: var(--slidev-code-font-family, monospace); }
 .green-t { fill: #15803d; font-weight: 700; }
 .blue-t { fill: #1d4ed8; font-weight: 700; }
+.muted { fill: #6b7280; }
+.faint { fill: #9ca3af; }
 </style>

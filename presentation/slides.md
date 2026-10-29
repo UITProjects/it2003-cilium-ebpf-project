@@ -60,7 +60,7 @@ Học kì II, 2025–2026
     <div class="agenda-n">1</div>
     <div class="agenda-t">Nền tảng: Kubernetes networking, iptables & eBPF</div>
     <ul class="agenda-l">
-      <li>netns · veth · CNI · mô hình mạng Kubernetes</li>
+      <li>mô hình mạng Kubernetes</li>
       <li>iptables (Netfilter) · eBPF & BPF map</li>
       <li>Đường đi packet · direct routing</li>
     </ul>
@@ -78,21 +78,7 @@ Học kì II, 2025–2026
 
 ---
 
-# 1.1 Linux primitive & CNI: netns · veth
-
-<LinuxPrimitives />
-
-<!--
-Namespace: cơ chế của kernel cô lập một loại tài nguyên cho một nhóm process (container = process + namespace). Kubernetes không tạo "máy ảo" mạng, chỉ dùng network namespace.
-→ Mỗi Pod = 1 netns riêng: interface, route, iptables, conntrack, cổng riêng; container trong Pod dùng chung netns do pause container giữ · ip netns, lsns -t net
-veth = cặp interface ảo: packet vào đầu này ra đầu kia. CNI tạo cặp khi Pod khởi động: một đầu vào netns của Pod (eth0), đầu kia ở host.
-Là lối ra duy nhất của Pod → mọi packet đi vào network stack của host; datapath chạy ở đó do CNI thiết lập (các slide sau).
-Chi tiết từng thành phần xem trong báo cáo.
--->
-
----
-
-# 1.2 Mô hình mạng Kubernetes & direct routing
+# 1.1 Mô hình mạng Kubernetes & direct routing
 
 <K8sModel />
 
@@ -101,7 +87,7 @@ Ba yêu cầu của mô hình mạng Kubernetes:
 ① Pod ↔ Pod mọi node, không NAT
 ② Node ↔ mọi Pod trên node
 ③ IP Pod tự thấy = IP người khác thấy
-Inter-node (click ②): mỗi node có route tới podCIDR của node kia qua IP node đó → packet giữ nguyên IP Pod trên L2 network.
+Inter-node (②): mỗi node có route tới podCIDR của node kia qua IP node đó → packet giữ nguyên IP Pod trên L2 network.
 Service: ClusterIP ảo không gắn interface, chỉ là rule DNAT trên mỗi node (kube-proxy / eBPF) → E1.
 
 Backup – route giữa các node được cài thế nào:
@@ -109,16 +95,17 @@ Backup – route giữa các node được cài thế nào:
 - Cilium: autoDirectNodeRoutes cài route trực tiếp (các node cùng L2).
 - Direct routing: không encapsulation (không VXLAN/Geneve header) → MTU 1500 đầy đủ cho Pod.
 - Cả hai cụm cùng direct routing → khác biệt trong thực nghiệm chỉ đến từ xử lý Service / policy.
+- netns/veth: mỗi Pod = 1 network namespace riêng; CNI tạo cặp veth, đầu eth0 trong Pod, đầu lxc* / cali* ở host → mọi packet của Pod đi qua network stack của host.
 -->
 
 ---
 
-# 1.3 Calico · iptables: rule, chain & conntrack
+# 1.2 Calico · iptables: rule, chain & conntrack
 
 <IptablesChain />
 
 <!--
-Người trình bày: phụ trách Calico. Phạm vi là Calico dùng Linux datapath iptables trong thực nghiệm này; Calico còn có chế độ eBPF.
+Người trình bày: Đạt. Phạm vi là Calico dùng Linux datapath iptables trong thực nghiệm này; Calico còn có chế độ eBPF.
 Giải thích rule, table và chain trước, sau đó conntrack. Chỉ packet đầu tiên của kết nối đi qua xử lý NAT; trạng thái NAT được áp dụng cho các packet sau.
 E1 đo kết nối mới, vì vậy cần phân biệt chi phí thiết lập kết nối với xử lý packet của kết nối đã có.
 Chuyển tiếp: xem các thành phần này xuất hiện ở đâu trên đường Pod tới Pod cùng node.
@@ -126,54 +113,34 @@ Chuyển tiếp: xem các thành phần này xuất hiện ở đâu trên đư�
 
 ---
 
-# 1.4 Calico · Đường đi packet giữa hai Pod cùng node
-
-<PathCompare mode="calico" />
-
-<div class="small mt-3">
-
-- Packet rời Pod A qua **veth**, đi vào network stack của host.
-- Host định tuyến tới Pod B; traffic đi qua các hook **Netfilter**, nơi rule iptables thực hiện kiểm tra tương ứng.
-- Ví dụ này dùng **IP Pod trực tiếp**; không minh họa bước dịch ClusterIP của Service.
-
-</div>
-
-<!--
-Người trình bày: phụ trách Calico. Sơ đồ khái quát, không phải mọi hook đều thực hiện NAT cho mọi packet. Conntrack lưu trạng thái; đường đi thực tế phụ thuộc cấu hình datapath.
-Kết thúc phần Calico: phần vừa rồi là đường xử lý của cụm Calico dùng iptables. Mời phần Cilium để giải thích chương trình eBPF và BPF map trước khi xem đường đi packet tương ứng.
--->
-
----
-
-# 1.5 Cilium · Chương trình eBPF & BPF map
+# 1.3 Cilium · Chương trình eBPF & BPF map
 
 <EbpfIntro />
 
 <!--
-Người trình bày: phụ trách Cilium. Chương trình được biên dịch thành BPF bytecode trước khi nạp qua bpf(); verifier kiểm tra và JIT biên dịch thành mã máy khi được hỗ trợ/bật.
+Người trình bày: Đạt. Chương trình được biên dịch thành BPF bytecode trước khi nạp qua bpf(); verifier kiểm tra và JIT biên dịch thành mã máy khi được hỗ trợ/bật.
 Chương trình gắn vào hook và sử dụng BPF maps trong kernel. cilium-agent cập nhật thông tin endpoint, identity và policy; chương trình datapath cũng có thể cập nhật trạng thái như conntrack.
 Các dòng trong bảng mô tả chức năng, không khẳng định mọi map đều có cùng cấu trúc hay độ phức tạp O(1).
-Chuyển tiếp: xem chương trình eBPF và các map tham gia xử lý packet Pod tới Pod cùng node.
+Chuyển tiếp: so sánh đường đi packet Pod tới Pod cùng node trên hai datapath.
 -->
 
 ---
 
-# 1.6 Cilium · Đường đi packet giữa hai Pod cùng node
+# 1.4 Đường đi packet giữa hai Pod cùng node: Calico vs Cilium
 
-<PathCompare mode="cilium" />
+<PathCompare mode="both" />
 
-<div class="small mt-3">
+<div class="text-center mt-5">
 
-- Packet từ Pod A đi vào chương trình **eBPF** ở phía host của veth.
-- Datapath sử dụng trạng thái kết nối, identity, policy và endpoint để quyết định xử lý; hình mô tả các chức năng chính.
-- Với **BPF host routing** được bật và hỗ trợ, packet được chuyển tiếp tới Pod cục bộ mà không đi theo đường Netfilter như hình Calico.
+<span class="hl">Calico: packet đi qua **Netfilter** của host · Cilium: **eBPF** tại TC tra map rồi redirect thẳng tới Pod</span>
 
 </div>
 
 <!--
-Người trình bày: phụ trách Cilium. Ví dụ dùng IP Pod trực tiếp, không phải đường Service load balancing. Các IP và identity chỉ là minh họa.
-Không coi các ô trong hình là thứ tự hook cố định cho mọi trường hợp; policy có thể được thực thi ở phía endpoint nguồn và đích tùy hướng traffic/cấu hình.
-Không suy ra kết quả hiệu năng từ hình. E1 trình bày phép đo Service ở phần thực nghiệm.
+Người trình bày: Đạt. Ví dụ dùng IP Pod trực tiếp, không minh họa bước dịch ClusterIP của Service (phần đó ở E1). IP và identity chỉ là minh họa.
+Calico: packet rời Pod A qua veth (cali*) vào network stack của host; host định tuyến tới Pod B, traffic đi qua các hook Netfilter (PREROUTING, FORWARD, POSTROUTING), nơi rule iptables kiểm tra. Không phải mọi hook đều NAT mọi packet; conntrack lưu trạng thái.
+Cilium: chương trình eBPF ở phía host của veth (lxc*) dùng conntrack, ipcache (IP → identity), policy map và endpoint map (4 lookup giới thiệu ở 1.3); với BPF host routing được bật và hỗ trợ, bpf_redirect_peer() chuyển packet tới Pod cục bộ mà không đi theo đường Netfilter.
+Không coi các ô là thứ tự hook cố định; policy có thể thực thi ở phía endpoint nguồn hoặc đích tùy hướng traffic/cấu hình. Không suy ra kết quả hiệu năng từ hình; E1 trình bày phép đo.
 -->
 ---
 clicks: 5
@@ -218,25 +185,46 @@ Cập nhật: iptables-restore giữ khoá xtables, chậm theo kích thước t
 
 ---
 
-# 2.1.2 E1 · Kết quả
+# 2.1.2 E1 · Routing: network stack vs eBPF redirect
 
-<img src="/e1-hero.png" class="mx-auto" style="max-height:335px" v-motion :initial="{ y: 40, opacity: 0 }" :enter="{ y: 0, opacity: 1, transition: { duration: 600 } }" />
+<RoutingCompare />
 
-<div v-click>
+<div class="text-center mt-3">
 
-| N Service | Table iptables | Table Cilium | p50 iptables (ms) | p50 Cilium (ms) | p99 ipt / cil (ms) | p50 ipt/cil |
-|---:|---:|---:|---:|---:|---:|---:|
-| 100 | 1 303 | 664 | 2.33 | 2.48 | 4.28 / 6.59 | 0.94 |
-| 4 060 | 44 863 | 20 464 | 3.31 | 2.36 | 6.08 / 5.03 | 1.40 |
-| 10 000 | 110 203 | 50 164 | **4.93** | **2.37** | 9.93 / 4.96 | 2.08 |
+<span class="hl">iptables: qua **network stack của host** ở cả hai node · eBPF: redirect thẳng vào **veth của Pod đích**</span>
 
 </div>
 
+<!--
+Cùng ý với 1.4, giờ trên đường đi cross-node của E1.
+Bổ sung cho sơ đồ ở 1.1: route giữa các node giống nhau (direct routing), khác nhau ở chỗ packet được xử lý trong node.
+Calico: Pod → cali* → host stack (PREROUTING: kube-proxy DNAT qua KUBE-SERVICES, routing, FORWARD, POSTROUTING) → eth0; node 2 lặp lại host stack rồi vào cali* → Pod.
+Cilium (BPF host routing, khi được bật và kernel hỗ trợ): eBPF tại TC của lxc* làm policy/conntrack, bpf_fib_lookup() rồi bpf_redirect_neigh() ra eth0; ở node 2, eBPF tại TC ingress của eth0 gọi bpf_redirect_peer() đưa packet thẳng vào netns của Pod.
+Service trên Cilium: ClusterIP → backend được dịch ngay khi client gọi connect() (LB map), nên packet rời Pod đã mang IP backend.
+Lưu ý: E1 đo khác biệt do Service lookup (O(n) vs hash). Phần bypass routing giảm chi phí per-packet nhưng E1 không tách riêng: ở N = 100, p50 iptables 2.33 ms, Cilium 2.48 ms, tức không thấy lợi thế đo được từ routing ở quy mô nhỏ.
+-->
+
 ---
 
-# 2.1.3 E1 · Toàn bộ phân phối độ trễ
+# 2.1.3 E1 · Kết quả
 
-<img src="/e1-cdf.png" class="w-full" v-motion :initial="{ y: 40, opacity: 0 }" :enter="{ y: 0, opacity: 1, transition: { duration: 600 } }" />
+<img src="/e1-hero.png" class="mx-auto" style="max-height:440px" v-motion :initial="{ y: 40, opacity: 0 }" :enter="{ y: 0, opacity: 1, transition: { duration: 600 } }" />
+
+<!--
+Toàn bộ phân phối dịch chuyển (CDF, backup: public/e1-cdf.png): 10 000 vs 100 Service, median iptables +2.6 ms, Cilium khoảng −0.1 ms → mọi connection đều chịu chi phí, không riêng phần đuôi.
+-->
+
+---
+
+# 2.1.4 E1 · Độ trễ đuôi (p99)
+
+<img src="/e1-hero-p99.png" class="mx-auto" style="max-height:440px" v-motion :initial="{ y: 40, opacity: 0 }" :enter="{ y: 0, opacity: 1, transition: { duration: 600 } }" />
+
+<!--
+p99 = 1% request chậm nhất. Ở 10 000 Service: iptables 9.93 ms, Cilium 4.96 ms.
+Phần lớn mức tăng của iptables nằm ở bước 8 020 → 10 000; p99 không tăng tuyến tính như p50, nên không vẽ đường slope.
+Lợi thế của eBPF ở p99 là khả năng mở rộng, không phải mọi quy mô đều nhanh hơn.
+-->
 
 ---
 
@@ -245,6 +233,7 @@ Cập nhật: iptables-restore giữ khoá xtables, chậm theo kích thước t
 <PolicyTranslate />
 
 <!--
+Người trình bày: Vũ (E2, slide 12–15, gồm demo 2.2.4).
 Packet chỉ mang IP, không mang label → mọi hiện thực đều phải dịch label → thứ kiểm tra được trên packet.
 iptables: policy gắn với IP tạm thời → Pod tạo/huỷ ⇒ Felix trên mọi node sửa ipset; trong lúc trễ: chặn nhầm Pod mới / cho phép nhầm IP tái sử dụng.
 eBPF: Pod mới cùng label ⇒ identity đã có, policy map giữ nguyên, chỉ phân phối ipcache (hoặc identity đi trong VNI). Hỗ trợ L7 qua Envoy (CiliumNetworkPolicy).
@@ -292,7 +281,7 @@ eBPF: Pod mới cùng label ⇒ identity đã có, policy map giữ nguyên, ch�
 <div class="text-xs muted mt-4">Minh họa kết quả kỳ vọng theo policy thiết kế; cần đối chiếu flow thực tế của bài thực nghiệm.</div>
 
 <!--
-Người trình bày: phụ trách Cilium/E2. Đây là minh họa, không phải log thực tế đã thu được.
+Người trình bày: Vũ. Đây là minh họa, không phải log thực tế đã thu được.
 Trước demo, xác nhận endpointSelector và serviceaccount khớp Pod, enforcement bật, policy đã được thực thi; hiện kết quả frontend chỉ có DNS chưa đủ xác nhận các quyền ứng dụng đã áp dụng.
 Với Hubble CLI đã kết nối Relay: hubble observe --namespace microservices-google-demo --verdict DROPPED --follow
 Quan sát trên Relay để bao phủ các node, hoặc agent đúng node nếu quan sát cục bộ. Drop có nhiều nguyên nhân, phải kiểm tra Policy denied.
@@ -302,25 +291,20 @@ Nguồn: https://docs.cilium.io/en/stable/observability/hubble/hubble-cli/
 -->
 
 ---
+layout: center
+class: text-center
+---
 
-# 2.2.4 E2 · Cilium ghi nhận kết nối bị policy chặn
-
-<div class="text-base muted mb-5">Quan sát packet bị drop bằng <code>cilium-dbg monitor --type drop -v</code>.</div>
-
-<DropMonitorExplain />
-
-<!--
-Ảnh người dùng cung cấp. Không suy diễn đây là frontend tới Redis/Payment, hoặc gán cho policy YAML cụ thể khi chưa đối chiếu identity, Pod, policy và thời điểm.
-Không khẳng định reverse shell đã được kiểm thử chỉ từ địa chỉ và cổng trong ảnh.
--->
+# 2.2.4 E2 · Demo
 
 ---
 
-# 2.3.1 E3 · Tetragon: eBPF hook ở tầng process/file
+# 2.3.1 E3 · Tetragon: hook ở tầng network/file/process
 
 <EbpfHooks />
 
 <!--
+Người trình bày: Phương (E3, slide 16–18, gồm demo 2.3.3).
 Tetragon = engine observability & thực thi bảo mật runtime dựa trên eBPF (một phần của Cilium), nhìn ở tầng syscall · process · file — khác với NetworkPolicy (chỉ ở tầng mạng).
 - Gắn vào kernel: kprobe · tracepoint · LSM → thấy syscall, exec/exit process, read/write file, mạng, credential.
 - Lọc ngay trong kernel theo TracingPolicy → chi phí thấp; gắn ngữ cảnh K8s (pod, namespace, label, binary).
@@ -330,6 +314,8 @@ Vì sao iptables không làm được:
 - iptables/Calico chỉ thấy packet ở hook mạng (L3/L4: IP, port, proto); không thấy process, syscall hay thao tác đọc file. Là firewall, không phải bảo mật runtime.
 - Muốn observe process/file → phải thêm công cụ khác (auditd…), nằm ngoài iptables.
 → Tetragon đòi hỏi eBPF (kprobe/LSM, BTF); demo E3 chỉ chạy trên cụm Cilium/eBPF, phía iptables không có công cụ tương đương.
+
+Network trong case E3 theo xác nhận của người trình bày: Tetragon gắn kprobe tại tcp_connect, khai báo syscall: false và args index 0 type sock. Sự kiện process_kprobe cung cấp ngữ cảnh tiến trình/Pod và socket nguồn/đích. Hook ghi nhận khởi tạo kết nối, không chứng minh handshake TCP, TLS hoặc request API thành công. Đây là tracing kết nối TCP của Tetragon, khác TC/cgroup datapath của Cilium. Bản thư mục hiện kiểm tra chưa có YAML tcp_connect nên không coi slide là bằng chứng đã triển khai hoặc chặn kết nối. Nguồn: https://tetragon.io/docs/use-cases/network-observability/ và https://github.com/cilium/tetragon/blob/main/examples/tracingpolicy/tcp-connect.yaml
 
 Trong E3, Tetragon theo dõi hook security_file_permission để bắt việc đọc serviceaccount/token — thứ File Inclusion làm ngay trong PHP worker. (File policy dùng kprobe; process_exec/exit có sẵn. Override cần kernel hỗ trợ, không mặc định đòi BPF-LSM.)
 -->
@@ -341,37 +327,21 @@ Trong E3, Tetragon theo dõi hook security_file_permission để bắt việc đ
 <TetragonFlow />
 
 <div class="small mt-2">
-<v-clicks>
+
 
 - **Command Injection:** chạy lệnh đọc file như `ca.crt`, ServiceAccount token → Tetragon ban đầu ghi nhận **process thực thi lệnh**
 - **File Upload → File Inclusion:** PHP đọc file ngay trong worker có sẵn, không sinh process mới → **bỏ lọt khi chỉ giám sát process**
 - **Thêm rule monitor file** tại `security_file_permission` → ghi nhận thao tác đọc cùng đường dẫn file và PHP worker. <span class="hl">**Monitor-only, chưa chặn**</span>
 
-</v-clicks>
+
 </div>
 
 ---
+layout: center
+class: text-center
+---
 
-# 2.3.3 E3 · Ghi nhận process từ Command Injection
-
-<div class="text-base muted mb-6">DVWA thực thi lệnh; Tetragon ghi nhận các process phát sinh trong Pod.</div>
-
-<img src="/e3-command-injection-process.png" class="w-full rounded" alt="Log Tetragon trong Pod DVWA: process và exit của shell, ping và id" />
-
-<div class="text-base mt-6 leading-relaxed">
-
-- **Process:** `/bin/sh` khởi chạy `ping` và `id`; log hiển thị binary và arguments.
-- **Exit:** ghi nhận kết thúc process; các dòng trong ảnh có exit status `0`.
-
-</div>
-
-<div class="text-sm muted mt-4">Bằng chứng cho giám sát process; ảnh này chưa thể hiện thao tác đọc file hay phát hiện File Inclusion.</div>
-
-<!--
-Ảnh do người dùng cung cấp. Lệnh tetra getevents lọc theo Pod DVWA; ví dụ shell chạy ping và id.
-Không diễn giải log này thành bằng chứng đọc ca.crt/token, chặn lệnh hay file-access event.
-Liên hệ bước 1 ở slide trước: Command Injection tạo process mới nên được ghi nhận; LFI đọc trực tiếp trong PHP worker cần bổ sung rule file.
--->
+# 2.3.3 E3 · Demo
 
 ---
 layout: center
@@ -387,3 +357,70 @@ class: text-center
 <div v-motion :initial="{ opacity: 0 }" :enter="{ opacity: 1, transition: { duration: 700, delay: 550 } }" class="text-sm muted mt-8">
 Nhóm 12 · IT2003.11.CH · Cilium and eBPF-based Networking for Kubernetes
 </div>
+---
+
+# Phụ lục · Format chung của CiliumNetworkPolicy
+
+<div class="grid grid-cols-[1.12fr_1fr] gap-6">
+<div style="font-size:12px;line-height:1.2">
+
+```yaml
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ten-policy
+  namespace: microservices-google-demo
+spec:
+  endpointSelector:
+    matchLabels:
+      app: ten-app
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app: app-nguon
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            app: app-dich
+      toPorts:
+        - ports:
+            - port: "6379"
+              protocol: TCP
+```
+
+</div>
+<div class="text-sm leading-relaxed">
+
+### 1. Áp dụng cho pod nào?
+`endpointSelector` chọn pod chịu policy bằng label.
+
+### 2. Kiểm soát chiều nào?
+`ingress`: vào pod đã chọn.<br/>
+`egress`: ra khỏi pod đã chọn.
+
+### 3. Cho giao tiếp với ai?
+`fromEndpoints`: chọn nguồn gửi vào.<br/>
+`toEndpoints`: chọn đích được gọi ra.
+
+### 4. Qua port nào?
+`toPorts` giới hạn **port đích** và protocol.
+
+<div class="mt-3 text-xs muted">
+Chỉ giữ hướng cần kiểm soát. Thay label, port theo ứng dụng thực tế. Nếu cả hai phía đều default deny, cần allow egress ở nguồn và ingress ở đích. DNS cần rule riêng.
+</div>
+
+</div>
+</div>
+
+<!--
+Khung mẫu minh họa cách viết CNP. Các label app cần khớp pod thực tế.
+endpointSelector chọn pod chịu tác động, fromEndpoints/toEndpoints chọn peer.
+Điều kiện peer và toPorts trong cùng mục phải đồng thời khớp. Các allow rule cộng dồn.
+Ví dụ chọn peer cùng namespace với CNP. Peer khác namespace cần selector namespace phù hợp.
+Nguồn: https://docs.cilium.io/en/stable/security/policy/layer3/
+Nguồn: https://docs.cilium.io/en/stable/security/policy/layer4/
+-->
