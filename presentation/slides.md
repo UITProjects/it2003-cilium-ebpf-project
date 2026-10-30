@@ -371,7 +371,7 @@ Chuyển phần: NetworkPolicy (kể cả L7) vẫn chỉ nhìn traffic mạng; 
 
 ---
 
-# 2.3.1 E3 · Tetragon: eBPF hook ở tầng process/file
+# 2.3.1 E3 · Tetragon: hook ở tầng network/file/process
 
 <EbpfHooks />
 
@@ -387,6 +387,8 @@ Vì sao iptables không làm được:
 - Muốn observe process/file → phải thêm công cụ khác (auditd…), nằm ngoài iptables.
 → Tetragon đòi hỏi eBPF (kprobe/LSM, BTF); demo E3 chỉ chạy trên cụm Cilium/eBPF, phía iptables không có công cụ tương đương.
 
+Network trong case E3 theo xác nhận của người trình bày: Tetragon gắn kprobe tại tcp_connect, khai báo syscall: false và args index 0 type sock. Sự kiện process_kprobe cung cấp ngữ cảnh tiến trình/Pod và socket nguồn/đích. Hook ghi nhận khởi tạo kết nối, không chứng minh handshake TCP, TLS hoặc request API thành công. Đây là tracing kết nối TCP của Tetragon, khác TC/cgroup datapath của Cilium. Bản thư mục hiện kiểm tra chưa có YAML tcp_connect nên không coi slide là bằng chứng đã triển khai hoặc chặn kết nối. Nguồn: https://tetragon.io/docs/use-cases/network-observability/ và https://github.com/cilium/tetragon/blob/main/examples/tracingpolicy/tcp-connect.yaml
+
 Trong E3, Tetragon theo dõi hook security_file_permission để bắt việc đọc serviceaccount/token — thứ File Inclusion làm ngay trong PHP worker. (File policy dùng kprobe; process_exec/exit có sẵn. Override cần kernel hỗ trợ, không mặc định đòi BPF-LSM.)
 -->
 
@@ -397,13 +399,13 @@ Trong E3, Tetragon theo dõi hook security_file_permission để bắt việc đ
 <TetragonFlow />
 
 <div class="small mt-2">
-<v-clicks>
+
 
 - **Command Injection:** chạy lệnh đọc file như `ca.crt`, ServiceAccount token → Tetragon ban đầu ghi nhận **process thực thi lệnh**
 - **File Upload → File Inclusion:** PHP đọc file ngay trong worker có sẵn, không sinh process mới → **bỏ lọt khi chỉ giám sát process**
 - **Thêm rule monitor file** tại `security_file_permission` → ghi nhận thao tác đọc cùng đường dẫn file và PHP worker. <span class="hl">**Monitor-only, chưa chặn**</span>
 
-</v-clicks>
+
 </div>
 
 ---
@@ -427,3 +429,70 @@ class: text-center
 <div v-motion :initial="{ opacity: 0 }" :enter="{ opacity: 1, transition: { duration: 700, delay: 550 } }" class="text-sm muted mt-8">
 Nhóm 12 · IT2003.11.CH · Cilium and eBPF-based Networking for Kubernetes
 </div>
+---
+
+# Phụ lục · Format chung của CiliumNetworkPolicy
+
+<div class="grid grid-cols-[1.12fr_1fr] gap-6">
+<div style="font-size:12px;line-height:1.2">
+
+```yaml
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ten-policy
+  namespace: microservices-google-demo
+spec:
+  endpointSelector:
+    matchLabels:
+      app: ten-app
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app: app-nguon
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            app: app-dich
+      toPorts:
+        - ports:
+            - port: "6379"
+              protocol: TCP
+```
+
+</div>
+<div class="text-sm leading-relaxed">
+
+### 1. Áp dụng cho pod nào?
+`endpointSelector` chọn pod chịu policy bằng label.
+
+### 2. Kiểm soát chiều nào?
+`ingress`: vào pod đã chọn.<br/>
+`egress`: ra khỏi pod đã chọn.
+
+### 3. Cho giao tiếp với ai?
+`fromEndpoints`: chọn nguồn gửi vào.<br/>
+`toEndpoints`: chọn đích được gọi ra.
+
+### 4. Qua port nào?
+`toPorts` giới hạn **port đích** và protocol.
+
+<div class="mt-3 text-xs muted">
+Chỉ giữ hướng cần kiểm soát. Thay label, port theo ứng dụng thực tế. Nếu cả hai phía đều default deny, cần allow egress ở nguồn và ingress ở đích. DNS cần rule riêng.
+</div>
+
+</div>
+</div>
+
+<!--
+Khung mẫu minh họa cách viết CNP. Các label app cần khớp pod thực tế.
+endpointSelector chọn pod chịu tác động, fromEndpoints/toEndpoints chọn peer.
+Điều kiện peer và toPorts trong cùng mục phải đồng thời khớp. Các allow rule cộng dồn.
+Ví dụ chọn peer cùng namespace với CNP. Peer khác namespace cần selector namespace phù hợp.
+Nguồn: https://docs.cilium.io/en/stable/security/policy/layer3/
+Nguồn: https://docs.cilium.io/en/stable/security/policy/layer4/
+-->
