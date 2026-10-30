@@ -19,7 +19,7 @@ const groups = [
   {
     kind: 'Process', hi: true,
     rows: [
-      { hook: 'process_exec (event)', at: 'Cơ chế giám sát thực thi có sẵn của Tetragon', use: 'Ghi nhận binary, arguments, parent khi Command Injection thực thi chương trình' },
+      { hook: 'process_exec / process_exit', at: 'Sự kiện vòng đời process có sẵn của Tetragon', use: 'Exec: ghi nhận binary, arguments, parent; Exit: ghi nhận process kết thúc và exit status' },
 
     ],
   },
