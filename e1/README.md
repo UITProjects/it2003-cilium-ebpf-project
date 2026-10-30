@@ -76,7 +76,7 @@ Keep the quick tests in a separate CSV: the chart averages every row it finds, s
 quick-test rows would be mixed into the full results. Re-running a step just appends rows.
 Before a full run, `main.py` offers to back up the CSV and drop the old rows of that setup.
 
-A full run is 6 sizes x 3 runs x ~45 s of load, plus Service creation and sync:
+A full run is 6 sizes x 3 runs x ~35 s of load (5 s warm-up + 30 s), plus Service creation and sync:
 roughly 20-40 minutes per setup.
 
 ### Knobs (flags, or env vars with the same name in capitals)
@@ -113,7 +113,7 @@ roughly 20-40 minutes per setup.
 | column | iptables (Setup A) | cilium (Setup B) |
 |---|---|---|
 | `rules` | all `-A` rules in `iptables-save -t nat` | rows in `cilium-dbg bpf lb list` (frontend + backends) |
-| `svc_entries` | rules in the KUBE-SERVICES chain | distinct frontends in the LB map |
+| `svc_entries` | rules in the KUBE-SERVICES chain | distinct frontends in the LB map (2 per ClusterIP Service: `IP:80/TCP` + the `IP:0/ANY` wildcard) |
 | `target_pos` | position of fortio-server's rule inside KUBE-SERVICES | `NA` |
 | `p50_ms` ... `p999_ms`, `avg_ms`, `max_ms` | per-request latency incl. TCP handshake | same |
 | `actual_qps`, `requests`, `errors` | from fortio | same |
@@ -138,17 +138,17 @@ and look at the charts yourself.
 
 ## Things to know when reading the numbers
 
-- **Where the iptables cost actually happens.** On node-2 the SYN walks KUBE-SERVICES until it hits
+- **Where the iptables cost actually happens.** On the client node the SYN walks KUBE-SERVICES until it hits
   fortio-server's rule, so the cost depends on its position (`target_pos`), which kube-proxy doesn't
-  keep fixed between syncs. On node-1 the already-DNATed packet is a new conntrack entry too and
+  keep fixed between syncs. On the server node the already-DNATed packet is a new conntrack entry too and
   walks the whole KUBE-SERVICES list without matching. So the measured cost is roughly
-  "part of the list on node-2 + all of it on node-1". Worth one sentence in the report.
+  "part of the list on the client node + all of it on the server node". Worth one sentence in the report.
 - **Cilium socket-LB.** With kube-proxy replacement, Cilium translates the ClusterIP at `connect()`
   time in the client's socket (socket-LB), before any packet exists. That is the realistic default
   and is what this test measures. If someone asks "what about per-packet eBPF?", rerunning with
   `socketLB.enabled=false` measures the tc datapath instead.
 - **Small N.** Below ~1000 Services the difference may be within noise. That is a valid result;
-  write it down. If you want a clearer signal you can add `SIZES="... 10000"` (check the CIDR).
+  write it down. For a clearer signal, go above the default 10000 with `SIZES` (check the CIDR).
 - **Errors / TIME_WAIT.** Each request uses a new ephemeral port. At 200 QPS x 35 s that is ~7000
   ports, well under the ~28k range. If you raise QPS and see errors, lower it or lengthen `COOLDOWN`.
 - **Quiet cluster.** The preflight lists any non-system pods that are running. Stop them.

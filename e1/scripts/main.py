@@ -110,7 +110,8 @@ def pick_csv() -> Path | None:
     return RESULTS / ans if ans else None
 
 
-def choose_setup() -> Config | None:
+def choose_setup() -> Config | str | None:
+    """A Config, "charts" (no cluster), "retry" (cluster unreachable) or None (quit)."""
     setup = questionary.select(
         "Which cluster?",
         choices=[questionary.Choice(f"{SETUP_LABEL[s]}   [{DEFAULT_CONTEXT[s]}]", s) for s in ("iptables", "cilium")]
