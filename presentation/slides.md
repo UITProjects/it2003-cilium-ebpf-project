@@ -232,7 +232,7 @@ Lợi thế của eBPF ở p99 là khả năng mở rộng, không phải mọi 
 <PolicyTranslate />
 
 <!--
-Người trình bày: Vũ (E2, slide 12–16, gồm demo 2.2.5).
+Người trình bày: Vũ (E2, slide 12–17, gồm demo 2.2.6).
 Packet chỉ mang IP, không mang label → mọi hiện thực đều phải dịch label → thứ kiểm tra được trên packet.
 iptables: policy gắn với IP tạm thời → Pod tạo/huỷ ⇒ Felix trên mọi node sửa ipset; trong lúc trễ: chặn nhầm Pod mới / cho phép nhầm IP tái sử dụng.
 eBPF: Pod mới cùng label ⇒ identity đã có, policy map giữ nguyên, chỉ phân phối ipcache (hoặc identity đi trong VNI). Hỗ trợ L7 qua Envoy (CiliumNetworkPolicy).
@@ -328,11 +328,35 @@ Chuyển phần: UC5 (NodePort 32210, trang chủ tải đủ) và UC7 (chặn r
 -->
 
 ---
+
+# 2.2.5 E2 · L7 policy: lọc HTTP API của DVWA
+
+<div class="text-sm muted -mt-2 mb-1"><code>rules.http</code> trên TCP 80: chỉ GET tới path trong allowlist được phép; API v1 không có trong danh sách.</div>
+
+<L7Policy />
+
+<img src="/e2-l7-denied.png" class="mx-auto mt-2" style="max-height:160px" />
+
+<div class="text-xs muted mt-1">Ảnh: policy <code>VALID=True</code>; GET tới API v1 → <code>Access denied</code>, Hubble ghi <code>http-request DROPPED</code>. Khác hai case L3/L4 (chặn ngay SYN), ở đây <b>HTTP request</b> bị drop theo rule L7. Chỉ mới kiểm thử GET tới API v1, chưa kiểm thử các method khác.</div>
+
+<!--
+Người trình bày: Vũ.
+Trước khi áp dụng policy L7, truy cập /vulnerabilities/api/v1/user/ trả về danh sách người dùng dạng JSON.
+dvwa-l7-api-policy áp dụng cho Pod app=dvwa, kiểm soát ingress TCP 80 bằng rules.http: một rule riêng cho POST/PUT/PATCH/DELETE/HEAD/OPTIONS; với GET chỉ cho phép giao diện ứng dụng, tài nguyên hỗ trợ và API v2.
+eBPF xử lý packet ở L3/L4 rồi chuyển traffic HTTP tới Envoy proxy trên node để kiểm tra method + path.
+Kết quả: kubectl get cnp -n dvwa → dvwa-l7-api-policy và dvwa-restrict-egress VALID=True; trình duyệt báo Access denied.
+hubble observe --pod dvwa/dvwa-7cb476559d-scft4 --protocol http --verdict DROPPED --follow
+→ 10.8.0.10 (world) → DVWA :80 (ID 29733) http-request DROPPED (HTTP/1.1 GET .../api/v1/user/).
+Giới hạn: chỉ cho thấy GET tới API v1 bị chặn, chưa cho biết các method khác khi gọi API v1.
+Chuyển phần: demo trực tiếp các kết quả E2.
+-->
+
+---
 layout: center
 class: text-center
 ---
 
-# 2.2.5 E2 · Demo
+# 2.2.6 E2 · Demo
 
 <!--
 Người trình bày: Vũ. Trình tự demo trực tiếp (hoặc phát video demo-iptable-e2.mp4):
@@ -342,6 +366,7 @@ Người trình bày: Vũ. Trình tự demo trực tiếp (hoặc phát video de
 4. Truy cập http://<node-ip>:32210 (UC5) từ trình duyệt
 5. Payload reverse shell DVWA → nc -lvnp 4444 không nhận được kết nối (UC7)
 Nếu còn thời gian, đối chiếu song song với Hubble/cilium-dbg monitor bên cụm Cilium.
+Chuyển phần: NetworkPolicy (kể cả L7) vẫn chỉ nhìn traffic mạng; tiếp theo Tetragon quan sát hành vi process/file bên trong workload.
 -->
 
 ---
@@ -351,7 +376,7 @@ Nếu còn thời gian, đối chiếu song song với Hubble/cilium-dbg monitor
 <EbpfHooks />
 
 <!--
-Người trình bày: Phương (E3, slide 16–18, gồm demo 2.3.3).
+Người trình bày: Phương (E3, slide 18–20, gồm demo 2.3.3).
 Tetragon = engine observability & thực thi bảo mật runtime dựa trên eBPF (một phần của Cilium), nhìn ở tầng syscall · process · file — khác với NetworkPolicy (chỉ ở tầng mạng).
 - Gắn vào kernel: kprobe · tracepoint · LSM → thấy syscall, exec/exit process, read/write file, mạng, credential.
 - Lọc ngay trong kernel theo TracingPolicy → chi phí thấp; gắn ngữ cảnh K8s (pod, namespace, label, binary).
