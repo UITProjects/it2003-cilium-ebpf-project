@@ -33,8 +33,8 @@ background: '#f7faf7'
 <div>
 
 **Môn học:** Công nghệ Mạng và Truyền thông hiện đại<br/>
-**Mã lớp:** IT2003.11.CH · **PGS.** Lê Trung Quân<br/>
-Học kì II, 2025–2026
+**Mã lớp:** IT2003.11.CH · **PGS.TS.** Lê Trung Quân<br/>
+Học kì I, 2026–2027
 
 </div>
 <div>
