@@ -337,7 +337,7 @@ Chuyển phần: UC5 (NodePort 32210, trang chủ tải đủ) và UC7 (chặn r
 
 <img src="/e2-l7-denied.png" class="mx-auto mt-2" style="max-height:160px" />
 
-<div class="text-xs muted mt-1">Ảnh: policy <code>VALID=True</code>; GET tới API v1 → <code>Access denied</code>, Hubble ghi <code>http-request DROPPED</code>. Khác hai case L3/L4 (chặn ngay SYN), ở đây <b>HTTP request</b> bị drop theo rule L7. Chỉ mới kiểm thử GET tới API v1, chưa kiểm thử các method khác.</div>
+<div class="text-xs muted mt-1">Ảnh: GET tới API v1 → <code>Access denied</code>, Hubble ghi <code>http-request DROPPED</code>. Khác hai case L3/L4, ở đây <b>HTTP request</b> bị drop theo rule L7. Chỉ mới kiểm thử GET tới API v1.</div>
 
 <!--
 Người trình bày: Vũ.
