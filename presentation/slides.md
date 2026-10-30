@@ -232,7 +232,11 @@ Lợi thế của eBPF ở p99 là khả năng mở rộng, không phải mọi 
 <PolicyTranslate />
 
 <!--
+<<<<<<< HEAD
 Người trình bày: Vũ (E2, slide 12–16, gồm demo 2.2.5).
+=======
+Người trình bày: Vũ (E2, slide 12–15, gồm demo 2.2.4).
+>>>>>>> a452c02010eb44f3caead82e5d63cfb6ca3c84a0
 Packet chỉ mang IP, không mang label → mọi hiện thực đều phải dịch label → thứ kiểm tra được trên packet.
 iptables: policy gắn với IP tạm thời → Pod tạo/huỷ ⇒ Felix trên mọi node sửa ipset; trong lúc trễ: chặn nhầm Pod mới / cho phép nhầm IP tái sử dụng.
 eBPF: Pod mới cùng label ⇒ identity đã có, policy map giữ nguyên, chỉ phân phối ipcache (hoặc identity đi trong VNI). Hỗ trợ L7 qua Envoy (CiliumNetworkPolicy).
@@ -292,7 +296,11 @@ Nguồn: https://docs.cilium.io/en/stable/observability/hubble/hubble-cli/
 -->
 
 ---
+layout: center
+class: text-center
+---
 
+<<<<<<< HEAD
 # 2.2.4 E2 · Kiểm chứng NetworkPolicy trên Calico (iptables)
 
 <div class="text-lg mb-5">Không có Hubble; xác nhận bằng <b class="text-green-800">tcpdump</b> và <b class="text-orange-700">iptables-save</b> trên node dữ liệu.</div>
@@ -340,6 +348,9 @@ Người trình bày: Vũ. Trình tự demo trực tiếp (hoặc phát video de
 5. Payload reverse shell DVWA → nc -lvnp 4444 không nhận được kết nối (UC7)
 Nếu còn thời gian, đối chiếu song song với Hubble/cilium-dbg monitor bên cụm Cilium.
 -->
+=======
+# 2.2.4 E2 · Demo
+>>>>>>> a452c02010eb44f3caead82e5d63cfb6ca3c84a0
 
 ---
 
