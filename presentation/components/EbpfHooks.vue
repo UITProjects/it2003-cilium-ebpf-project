@@ -1,14 +1,12 @@
 <script setup lang="ts">
 // Slide 2.3.1 (E3): where an eBPF program can attach, grouped by the kind of event it hooks.
 // File / Process hooks (what Tetragon uses) are highlighted and get most of the space;
-// Network hooks (the Cilium datapath of E1/E2) are muted context.
+// Network observability: Tetragon kprobe on tcp_connect, as specified for the E3 case.
 const groups = [
   {
-    kind: 'Network', hi: false,
+    kind: 'Network', hi: true,
     rows: [
-      { hook: 'TC ingress / egress', at: 'every interface, incl. veth lxc*', use: 'Cilium datapath: routing, NAT, policy' },
-      { hook: 'cgroup/connect4', at: 'socket connect()', use: 'Service IP → backend at connect' },
-      { hook: 'sock_ops / sk_msg', at: 'socket', use: 'sockmap: same-host shortcut' },
+      { hook: 'kprobe → process_kprobe', at: 'tcp_connect(struct sock *)', use: 'Ghi nhận tiến trình / Pod tạo kết nối TCP, IP và port nguồn / đích' },
     ],
   },
   {
@@ -32,7 +30,7 @@ const groups = [
   <div class="eh">
     <table>
       <thead>
-        <tr><th>Nhóm</th><th>Hook / Event</th><th>Điểm gắn / Nguồn sự kiện</th><th>Vai trò trong thực nghiệm</th></tr>
+        <tr><th>Nhóm</th><th>Hook / Event</th><th>Hàm kernel / Nguồn sự kiện</th><th>Vai trò trong thực nghiệm</th></tr>
       </thead>
       <tbody v-for="g in groups" :key="g.kind" :class="g.hi ? 'hi' : 'lo'">
         <tr v-for="(r, i) in g.rows" :key="r.hook">
@@ -45,11 +43,8 @@ const groups = [
     </table>
 
     <div class="eh-legend">
-      <span class="i"><i class="bx hi"></i> file / process monitoring · Tetragon</span>
-      <span class="i"><i class="bx lo"></i> network hook · Cilium datapath (E1, E2)</span>
-    </div>
-    <div class="take">
-      <span class="g">Exec event phản ánh thực thi chương trình; file event bổ sung thao tác truy cập file</span>
+      <span class="i"><i class="bx hi"></i> network / file / process monitoring · Tetragon</span>
+      
     </div>
   </div>
 </template>
@@ -68,7 +63,7 @@ td { padding: 4px 12px; border-top: 1px solid #cbd5e1; vertical-align: middle; }
 .hi .hook { font-weight: 700; color: #14532d; }
 .lo + .hi tr:first-child td { border-top: 2px solid #374151; }
 
-/* Network: muted context. */
+/* E3 network flow: application context, not a traced Tetragon hook. */
 .lo td { background: #f8fafc; color: #6b7280; font-size: 11.5px; }
 .lo .kind { font-size: 12.5px; }
 

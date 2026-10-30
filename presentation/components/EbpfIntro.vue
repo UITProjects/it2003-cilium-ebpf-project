@@ -1,14 +1,14 @@
 <template>
   <div class="intro">
     <EbpfVM />
-    <div class="map-title">BPF map lưu trạng thái dùng chung giữa agent và chương trình eBPF</div>
+    <div class="map-title">BPF map: bảng dữ liệu trong kernel mà cilium-agent và chương trình eBPF cùng đọc/ghi</div>
     <table>
-      <thead><tr><th>Thông tin</th><th>Vai trò trong Cilium</th></tr></thead>
+      <thead><tr><th>BPF map</th><th>Dùng để làm gì</th></tr></thead>
       <tbody>
-        <tr><td>Conntrack</td><td>Theo dõi trạng thái kết nối</td></tr>
-        <tr><td>IP → security identity</td><td>Ánh xạ địa chỉ IP với danh tính bảo mật</td></tr>
-        <tr><td>Policy</td><td>Lưu điều kiện cho phép theo identity, giao thức và cổng</td></tr>
-        <tr><td>Endpoint</td><td>Thông tin endpoint để chuyển tiếp tới Pod cục bộ</td></tr>
+        <tr><td>conntrack</td><td>Ghi nhớ các connection đang mở → packet tiếp theo không phải kiểm tra lại từ đầu</td></tr>
+        <tr><td>ipcache <span class="sub">IP → identity</span></td><td>Tra một IP thuộc identity nào (identity = nhóm Pod có cùng label)</td></tr>
+        <tr><td>policy map</td><td>Với từng Pod: identity nào được phép kết nối tới port / protocol nào</td></tr>
+        <tr><td>endpoint map</td><td>Các Pod đang chạy trên node → đích là Pod cục bộ thì redirect thẳng tới đó</td></tr>
       </tbody>
     </table>
   </div>
@@ -19,5 +19,6 @@
 table { width:100%; border-collapse:collapse; font-size:13px; }
 th { text-align:left; background:#ecf7ee; }
 th, td { padding:5px 12px; border-bottom:1px solid #dbe4dc; }
-td:first-child { font-weight:600; width:30%; }
+td:first-child { font-weight:600; width:30%; font-family: var(--slidev-code-font-family, monospace); }
+.sub { font-weight:400; font-size:11.5px; color:#6b7280; margin-left:6px; }
 </style>
