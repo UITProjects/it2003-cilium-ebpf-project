@@ -1,5 +1,10 @@
 # Cilium eBPF và iptables trong mạng Kubernetes
 
+> **Status: closed (2026-10-31).** The course project is finished and the lab is torn down: the Proxmox
+> VMs, VPN server and SDN subnets were destroyed with `terraform destroy`, and the DNAT rules and VPN route
+> on the Proxmox host were removed. The Kubernetes contexts (`:2443`, `:2444`), the OpenVPN endpoint and the
+> DVWA LB IP no longer exist. Code, results, report and slides stay here for reference.
+
 **Cilium and eBPF-based Networking for Kubernetes: A Modern Alternative to Traditional iptables Networking**:
 IT2003.11.CH course project (*Công nghệ Mạng và Truyền thông hiện đại*), Group 12.
 
@@ -66,6 +71,8 @@ git submodule update --init                # kubespray, microservices-demo, docs
 python3 -m venv e1/.venv && e1/.venv/bin/pip install -r e1/requirements.txt   # E1 scripts
 ```
 
+The lab is torn down, so the commands below need a rebuilt lab first (see "Rebuilding the infrastructure" below).
+
 With `kubectl` contexts for both clusters (API through Proxmox DNAT: `:2443` Cilium, `:2444` Calico):
 
 ```bash
@@ -99,7 +106,9 @@ Rebuilding the infrastructure from scratch:
 1. `infrastructure/tf/`: `terraform apply` creates the SDN subnets, the 6 VMs and the VPN VM
    (needs `proxmox_endpoint`, `proxmox_username`, `proxmox_password`, `it2003_vpn_password`).
 2. `infrastructure/configuration/`: Ansible playbooks for users and swap, the Proxmox firewall/DNAT
-   (`proxmox-firewall-*.yaml`), then Kubespray with the inventory for each cluster.
+   (`proxmox-firewall-*.yaml`), then Kubespray with the inventory for each cluster. Since the teardown the
+   firewall playbooks *remove* the DNAT/FORWARD rules and the VPN route (`state: absent`); switch them back
+   to `present` (or revert commit 54bc099) before rebuilding.
 3. Cilium: `helm install` from `kubernetes/network/cilium/` with `production.yaml`, then
    `kubectl apply -f kubernetes/network/cilium-config/l2.yaml`.
 4. Optional: observability charts in `kubernetes/observibility/`, Online Boutique from `microservices-demo/`.
