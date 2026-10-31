@@ -277,8 +277,6 @@ eBPF: Pod mới cùng label ⇒ identity đã có, policy map giữ nguyên, ch�
 
 </div>
 
-<img src="/e2-policy-drop-monitor.png" class="mx-auto mt-3" style="max-height:200px" />
-
 <div class="text-xs muted mt-4">Minh họa kết quả kỳ vọng theo policy thiết kế; cần đối chiếu flow thực tế của bài thực nghiệm.</div>
 
 <!--
