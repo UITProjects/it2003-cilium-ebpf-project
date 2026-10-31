@@ -1,5 +1,5 @@
 ---
-- name: Configure DNAT port-forwarding to it2003-calico VMs
+- name: Remove DNAT port-forwarding to it2003-calico VMs
   hosts: proxmox-server
   become: true
   vars:
@@ -37,7 +37,7 @@
       to_destination: "{{ vm_ip_base }}{{ vm_ip_start + item }}:{{ ssh_internal_port }}"
       action: insert
       rule_num: 1
-      state: present
+      state: absent
       comment: "{{ comment_prefix }}: DNAT SSH: ext {{ external_port_base + item }} -> it-2003-ubuntu2404-{{ vm_name_index_start + item }} ({{ vm_ip_base }}{{ vm_ip_start + item }}:{{ ssh_internal_port }})"
     loop: "{{ range(0, vm_count) | list }}"
 
@@ -50,7 +50,7 @@
       jump: ACCEPT
       action: insert
       rule_num: 1
-      state: present
+      state: absent
       comment: "{{ comment_prefix }}: Allow forwarded SSH to it-2003-ubuntu2404-{{ vm_name_index_start + item }} ({{ vm_ip_base }}{{ vm_ip_start + item }})"
     loop: "{{ range(0, vm_count) | list }}"
 
@@ -65,7 +65,7 @@
       to_destination: "192.168.50.160:6443"
       action: insert
       rule_num: 1
-      state: present
+      state: absent
       comment: "IT2003: DNAT K8s API: ext 2444 -> 192.168.50.160:6443"
   - name: Save iptables rules persistently
     ansible.builtin.command: netfilter-persistent save

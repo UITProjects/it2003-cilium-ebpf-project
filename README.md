@@ -1,169 +1,135 @@
-# Cilium eBPF và iptables trong mạng Kubernetes
+# Cilium eBPF vs iptables in Kubernetes networking
 
 **Cilium and eBPF-based Networking for Kubernetes: A Modern Alternative to Traditional iptables Networking**:
-IT2003.11.CH course project (*Công nghệ Mạng và Truyền thông hiện đại*), Group 12.
+IT2003.11.CH course project (*Công nghệ Mạng và Truyền thông hiện đại*), Group 12, lecturer PGS TS. Lê Trung Quân,
+Semester I 2026–2027.
 
-**Goal:** measure, on real hardware, how far the theoretical differences between the two Kubernetes datapaths
-show up in practice: Netfilter/iptables (Calico + kube-proxy) versus eBPF (Cilium with kube-proxy replacement).
-Three experiments: Service latency at scale (E1), NetworkPolicy segmentation (E2), and runtime security
-with Tetragon (E3).
+> **Status: closed (2026-10-31).** The course project is finished and the lab is torn down: the Proxmox
+> VMs, VPN server and SDN subnets were destroyed with `terraform destroy`, and the DNAT rules and VPN route
+> on the Proxmox host were removed. The Kubernetes contexts (`:2443`, `:2444`), the OpenVPN endpoint and the
+> DVWA LB IP no longer exist. Code, results, report and slides stay here for reference.
 
-**Method:** two equivalent 3-node clusters on one Proxmox host, built with the same tooling (Terraform +
-Kubespray v2.31.0, Kubernetes 1.35.8). Each experiment runs the same workload on both clusters. The full
-report (in Vietnamese, written on Overleaf) is in `docs-latex/`; the slides for the talk are in `presentation/`.
+Full report (Vietnamese, 31 pages): **[IT2003-Group12-Report.pdf](IT2003-Group12-Report.pdf)**.
 
-![E1: connection latency vs number of Services](e1/results/e1.png)
+## 1. Why this project
 
-E1 headline: from 100 to 10,000 Services, iptables p50 connection latency rose from **2.36 ms to 4.74 ms**
-(110k nat rules), while Cilium stayed flat at **≈ 2.25 ms**. Details: [`e1/README.md`](e1/README.md).
+Most production Kubernetes clusters still run kube-proxy in iptables mode with a Netfilter-based CNI such as
+Calico. Cilium with eBPF is now the common alternative, and the case for it is usually made with vendor
+benchmarks. We picked this topic because it is a decision platform teams actually face, and we wanted our own
+evidence for it:
 
-## Experiments
+- **Scale:** does Service routing get slower as a cluster grows to thousands of Services, and by how much?
+- **Segmentation:** can both datapaths stop lateral movement and data exfiltration from a compromised Pod, and
+  how hard is it to prove that a connection was dropped by a policy?
+- **Runtime visibility:** what can you see inside a compromised Pod (processes, file reads, outbound
+  connections), which a packet firewall cannot?
+- **Outcome:** measured results on identical hardware, turned into a practical CNI recommendation instead of a
+  feature list.
 
-| | question | status | where |
-|---|---|---|---|
-| **E1** | How does connection setup latency to a Service change as the number of Services grows? | done | `e1/` |
-| **E2** | How is NetworkPolicy represented in the kernel by each datapath, and what happens when Pods are added? | Cilium side: 15 policies deployed and `Valid=True`, drops verified with Hubble; kernel-state before/after scaling and Calico comparison pending | [`e2/cilium/`](e2/cilium/README.md) |
-| **E3** | What can eBPF see inside a compromised workload (process, file access) that a packet firewall cannot? | monitor policies and PoC done, results being written | [`e3/Tetragon/`](e3/Tetragon/README.md) |
+## 2. Lab environment
 
-E2 segments Google Online Boutique with default deny plus per-service allow rules (identity by label,
-namespace and ServiceAccount): frontend may call Cart, but not Redis or Payment directly. E3 exploits DVWA
-to read the Pod's ServiceAccount token and shows that process-level monitoring catches Command Injection but
-misses File Inclusion (the PHP worker reads the file itself), which needs a file rule on
-`security_file_permission`. E2 and E3 run on the Cilium cluster; Tetragon has no iptables counterpart.
+One Proxmox VE host in a homelab, built entirely as code, so both clusters come from the same tooling:
 
-## Lab topology
+| layer | tool | what it does |
+|---|---|---|
+| VMs and networks | Terraform ([bpg/proxmox](https://registry.terraform.io/providers/bpg/proxmox)), [`infrastructure/tf/`](infrastructure/tf/) | SDN zones/subnets, 6 cluster VMs + 1 OpenVPN VM, per-VM Proxmox firewall |
+| OS and host access | Ansible, [`infrastructure/configuration/`](infrastructure/configuration/) | users, swap off, DNAT on the Proxmox host for SSH / API / VPN |
+| Kubernetes | Kubespray v2.31.0 | Kubernetes 1.35 on both clusters |
+| CNI | Helm (Cilium 1.20.1), Kubespray (Calico) | the only layer that differs between the clusters |
+
+Two clusters run side by side, each with 3 identical VMs (4 vCPU, 4 GiB RAM, 120 GB disk) on the same physical host,
+so both datapaths are measured under the same conditions and can be demoed at the same time:
+
+| | Calico cluster (192.168.50.0/24) | Cilium cluster (192.168.40.0/24) |
+|---|---|---|
+| Datapath | iptables | eBPF |
+| Service handling | kube-proxy in `iptables` mode | kube-proxy replacement (no kube-proxy) |
+| Pod routing | BGP (BIRD), no IPIP/VXLAN | native routing, `autoDirectNodeRoutes` |
+| Extras | none | Hubble (flow logs + UI), Tetragon, L2 LoadBalancer IPs |
+
+Both clusters use **direct routing with no overlay** (MTU 1500), so the results reflect Service and policy handling, not
+encapsulation. Both also ran the same background load (kube-prometheus-stack, Loki, Alloy, Online Boutique, DVWA).
+The team reached the clusters through OpenVPN and DNAT on the Proxmox host.
 
 ```mermaid
 flowchart LR
-  U["team laptop"] -- "OpenVPN<br/>udp 2194" --> P
-  U -- "kubectl<br/>:2443 / :2444" --> P
-  subgraph P["Proxmox host (pve-master)"]
-    V["it-2003-vpn-server<br/>192.168.40.10"]
-    subgraph A["Cilium cluster · 192.168.40.0/24"]
-      A0["ubuntu2404-0 .160<br/>control plane"] --- A1["-1 .161"] --- A2["-2 .162"]
-      LB["L2 LB pool .130–.150<br/>Hubble UI, DVWA .140"]
+  U["team laptop"] -- "OpenVPN / kubectl" --> P
+  subgraph P["Proxmox host"]
+    V["OpenVPN VM"]
+    subgraph A["Cilium cluster · eBPF"]
+      A0["control plane"] --- A1["worker"] --- A2["worker"]
     end
-    subgraph B["Calico cluster · 192.168.50.0/24"]
-      B0["ubuntu2404-3 .160<br/>control plane"] --- B1["-4 .161"] --- B2["-5 .162"]
+    subgraph B["Calico cluster · iptables"]
+      B0["control plane"] --- B1["worker"] --- B2["worker"]
     end
     V --- A
     V --- B
   end
 ```
 
-- **Cilium:** eBPF datapath, `kubeProxyReplacement: true`, Hubble (relay + UI), Tetragon, L2 announcements
-  for LoadBalancer IPs. Helm values: `kubernetes/network/cilium/production.yaml`.
-- **Calico:** iptables datapath, kube-proxy in `iptables` mode (not Kubespray's default `ipvs`).
-  Inventory: `infrastructure/configuration/inventory/calico/`.
-- **Pod routing:** both clusters use direct routing, no overlay (Calico: BIRD BGP with IPIP/VXLAN off;
-  Cilium: native routing with `autoDirectNodeRoutes`), so MTU stays 1500 and the comparison isolates
-  Service and policy handling.
+## 3. Experiments
 
-## Quick start
+### 3.1 E1: Service load balancing at scale, and infrastructure
 
-```bash
-git submodule update --init                # kubespray, microservices-demo, docs-latex
-python3 -m venv e1/.venv && e1/.venv/bin/pip install -r e1/requirements.txt   # E1 scripts
-```
+*Owner: Ngô Vũ Minh Đạt (also built and ran the lab infrastructure above).*
 
-With `kubectl` contexts for both clusters (API through Proxmox DNAT: `:2443` Cilium, `:2444` Calico):
+**What we measured:** latency of a new TCP connection to a ClusterIP while the cluster grows from 100 to 10,000
+Services. We used fortio at 200 req/s with no keep-alive, 3 runs for each of 6 Service counts, on both clusters
+(36 runs, 216,000 requests, all successful).
 
-```bash
-cd e1
-.venv/bin/python scripts/main.py           # interactive: pick cluster, quick test / full run / demo / charts
-.venv/bin/python scripts/run-e1.py run iptables   # or without prompts: Setup A (context it2003@calico)
-.venv/bin/python scripts/run-e1.py run cilium     #                     Setup B (context it2003@cilium)
-.venv/bin/python scripts/collect-and-draw-chart.py results/e1.csv
-```
+![E1: connection latency vs number of Services](e1/results/e1.png)
 
-E2 and E3, on the Cilium cluster (Online Boutique from `microservices-demo/` deployed in
-`microservices-google-demo`):
+| Services | iptables nat rules | Cilium LB-map entries | p50 iptables | p50 Cilium | p99 iptables | p99 Cilium |
+|---:|---:|---:|---:|---:|---:|---:|
+| 100 | 1,303 | 664 | 2.33 ms | 2.48 ms | 4.28 ms | 6.59 ms |
+| 4,060 | 44,863 | 20,464 | 3.31 ms | 2.36 ms | 6.08 ms | 5.03 ms |
+| 10,000 | 110,203 | 50,164 | 4.93 ms | 2.37 ms | 9.93 ms | 4.96 ms |
 
-```bash
-kubectl apply -f e2/cilium/                # 15 CiliumNetworkPolicy: default deny + allow rules
-kubectl wait -n microservices-google-demo --for=condition=Valid cnp --all --timeout=30s
-hubble observe --namespace microservices-google-demo --verdict DROPPED --follow
+**Takeaways**
+- **Cilium stays flat.** p50 stayed between 2.35 and 2.55 ms across the whole range.
+- **iptables grows linearly.** p50 rose from 2.33 to 4.93 ms (+112 %, about +0.26 ms per 1,000 Services). At 10,000
+  Services every new connection pays about 2.6 ms extra, 2.08× slower than Cilium.
+- **The extra cost is in connection setup.** iptables `connect()` time rose from 1.10 to 3.30 ms, while Cilium's stayed
+  at about 1.1 ms. So workloads that open many short connections pay the most. (We only measured new
+  connections.)
+- **Small clusters see no win.** At 100 Services iptables p50 is slightly lower (2.33 vs 2.48 ms), and below about
+  3,000 Services its p99 is shorter. eBPF's advantage here is scalability, not raw speed.
 
-kubectl apply -f e2/manifests/dvwa.yaml    # DVWA target app (LB 192.168.40.140)
-kubectl apply -f e2/case_reverse_shell.yaml          # E2: block DVWA reverse-shell callbacks
-kubectl apply -f e3/Tetragon/dvwa-token-monitor.yaml # E3: log ServiceAccount-token reads
-kubectl exec -n kube-system ds/tetragon -c tetragon -- tetra getevents -o compact
-```
+**Limits:** one load level only; CPU usage, maximum throughput and rule-update time were not measured. Tetragon was
+paused during the runs because it alone used about 1.9 CPU cores on the server node, so it adds a cost of its own.
+Details: [`e1/README.md`](e1/README.md).
 
-Knobs, quick-test mode and how to read the numbers: [`e1/README.md`](e1/README.md). Test scenarios and
-exploit steps: [`e2/cilium/TEST-SCENARIOS.md`](e2/cilium/TEST-SCENARIOS.md),
-[`e3/Tetragon/README.md`](e3/Tetragon/README.md).
+### 3.2 E2: NetworkPolicy segmentation, and E3: runtime security
 
-Rebuilding the infrastructure from scratch:
+*Owners: Nguyễn Hoài Phương and Nguyễn Long Vũ (shared).*
 
-1. `infrastructure/tf/`: `terraform apply` creates the SDN subnets, the 6 VMs and the VPN VM
-   (needs `proxmox_endpoint`, `proxmox_username`, `proxmox_password`, `it2003_vpn_password`).
-2. `infrastructure/configuration/`: Ansible playbooks for users and swap, the Proxmox firewall/DNAT
-   (`proxmox-firewall-*.yaml`), then Kubespray with the inventory for each cluster.
-3. Cilium: `helm install` from `kubernetes/network/cilium/` with `production.yaml`, then
-   `kubectl apply -f kubernetes/network/cilium-config/l2.yaml`.
-4. Optional: observability charts in `kubernetes/observibility/`, Online Boutique from `microservices-demo/`.
+**E2: NetworkPolicy.** We segmented Google Online Boutique with a default-deny policy plus one allow policy per service,
+and locked down DVWA (a deliberately vulnerable app, exposed only inside the lab behind the VPN). Each scenario ran on
+both clusters:
 
-## Presentation
+| scenario | Cilium (eBPF) | Calico (iptables) |
+|---|---|---|
+| Compromised frontend calls Redis / Payment directly | blocked: SYN dropped, `Policy denied` with source/destination identity | blocked: `nc` timed out; matching `knp.default.<policy>` rules found in `iptables-save` |
+| Reverse shell from DVWA to an outside listener | blocked: Hubble shows the egress flow denied | blocked: listener got nothing; `tcpdump` shows SYN retransmits with no SYN-ACK |
+| Block one HTTP API path (L7) on DVWA | blocked: `Access denied`; Hubble logs the dropped `GET` with its path | not possible: standard and Calico OSS policies cannot inspect HTTP |
 
-Slidev deck condensed from the report (slide text in Vietnamese, diagram labels in English), 20 slides:
-1. Foundation (netns/veth/CNI, Kubernetes network model and direct routing, iptables vs eBPF, packet paths),
-2. Experiments (topology, then E1 mechanism → results, E2 identity → segmentation → Hubble/drop evidence,
-E3 Tetragon hooks → attack flow → process log):
+What matters for operations is how you **prove** a drop. On Cilium one tool, run through `kubectl` (Hubble or
+`cilium-dbg monitor`), shows the flow, the identities and the reason. On Calico you need SSH to the node and two
+separate tools (`tcpdump` plus `iptables-save`), although the rule names do point to the exact policy.
+**Not done:** full coverage of the allowed flows (e.g. a complete checkout), other HTTP methods, and kernel-state
+snapshots (BPF policy maps / ipsets) before and after scaling a Pod. Policies and scenarios:
+[`e2/cilium/`](e2/cilium/README.md), [`e2/`](e2/).
 
-```bash
-cd presentation
-npm install
-npm run dev        # http://localhost:3030, press P for presenter mode
-npm run export     # PDF (uses playwright-chromium)
-```
+**E3: runtime security with Tetragon** (Cilium cluster only; iptables has no equivalent). After exploiting DVWA,
+monitor-only Tetragon policies recorded:
 
-`slides.md` holds the deck; the diagrams (topology, K8s model, packet paths, Service lookup, policy
-translation, Tetragon hooks, ...) are Vue components in `presentation/components/`, and evidence
-screenshots are in `presentation/public/`. Slidev is pinned to 52.20.1 because 53+ needs
-Node ≥ 22.12; `.npmrc` (`legacy-peer-deps`) and the `markdown-it` override in `package.json` work around
-npm peer-dependency errors. Keep them unless Node is upgraded.
-
-## Repository layout
-
-| path | what it is |
+| event type | what it showed |
 |---|---|
-| `infrastructure/tf/` | Terraform (bpg/proxmox): SDN subnets, cluster VMs, VPN server |
-| `infrastructure/configuration/` | Ansible: users, swap, Proxmox firewall/DNAT, Kubespray inventory; `kubespray/` submodule |
-| `infrastructure/e1-deployment-*.html` | E1 deployment diagrams |
-| `kubernetes/network/` | Cilium Helm chart + values, L2 LB IP pool / announcement policy |
-| `kubernetes/observibility/` | kube-prometheus-stack, Loki, Alloy (metrics + logs, Cilium metrics on) |
-| `e1/` | E1: bench manifest, run/measure/plot scripts, results (CSV, PNG, raw fortio + rule dumps) |
-| `e2/cilium/` | E2: 15 CiliumNetworkPolicy for Online Boutique, README, test scenarios, diagrams |
-| `e2/case_*.yaml`, `e2/manifests/` | E2: DVWA app and its reverse-shell / lateral-movement policy cases |
-| `e3/Tetragon/` | E3: Tetragon TracingPolicies (monitor, scoped, enforce sample), PoC, flow diagrams |
-| `docs-latex/` | git submodule: LaTeX project report, synced with Overleaf (build outputs gitignored) |
-| `presentation/` | Slidev slides for the talk (`slides.md`, diagram components in `components/`) |
-| `.agents/skills/slidev/` | Slidev agent skill for AI coding assistants (`npx skills add slidevjs/slidev`) |
-| `microservices-demo/` | git submodule: [Google Online Boutique](https://github.com/GoogleCloudPlatform/microservices-demo), used as a realistic workload |
-| `e1/requirements.txt` | Python dependencies for the E1 scripts (use `e1/.venv`) |
+| process | `/bin/sh` and `ping` started by Command Injection, with full command line and exit codes |
+| TCP connect | Apache connecting to MySQL (`127.0.0.1:3306`) and to the Kubernetes API (`:6443`) |
+| file read | Apache reading the Pod's ServiceAccount token and `ca.crt` |
 
-## Requirements
-
-- Proxmox VE host with SDN, about 6 VMs × 4 vCPU.
-- Terraform with the [bpg/proxmox](https://registry.terraform.io/providers/bpg/proxmox) provider, Ansible.
-- `kubectl`, `helm`, `bash`, Python 3 (matplotlib) on the machine you run experiments from; Hubble CLI for E2.
-- Tetragon (Helm, `kube-system`) on the Cilium cluster for E3.
-- Node.js ≥ 20.12 and npm for the slides.
-
-## Safety
-
-DVWA (`e2/manifests/dvwa.yaml`) is a deliberately vulnerable app with hard-coded credentials. Expose it only
-on the lab LoadBalancer IP behind the VPN, never on the internet.
-
-## References
-
-- Cilium documentation: <https://docs.cilium.io>; Hubble: <https://github.com/cilium/hubble>;
-  Tetragon: <https://tetragon.io/docs/>.
-- Kubespray: <https://github.com/kubernetes-sigs/kubespray>.
-- Kubernetes networking model: <https://kubernetes.io/docs/concepts/services-networking/>.
-- The full bibliography is in `docs-latex/ref.bib`.
-
-## License
-
-MIT, see `LICENSE`.
+The useful lesson: when the attack runs inside the existing web process (a PHP file via File Inclusion), no new process
+appears. Process logs alone miss it, and you need file and connect hooks to see the token theft and the API call.
+**Not done:** overhead and event loss under load, and enforcement (all policies only log). Policies and PoC:
+[`e3/Tetragon/`](e3/Tetragon/README.md).
