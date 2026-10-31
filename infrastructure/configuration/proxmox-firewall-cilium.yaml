@@ -1,5 +1,5 @@
 ---
-- name: Configure DNAT port-forwarding to it-2003 VMs
+- name: Remove DNAT port-forwarding to it-2003 VMs
   hosts: proxmox-server
   become: true
   vars:
@@ -36,7 +36,7 @@
         to_destination: "{{ vm_ip_base }}{{ vm_ip_start + item }}:{{ ssh_internal_port }}"
         action: insert
         rule_num: 1
-        state: present
+        state: absent
         comment: "DNAT SSH: ext {{ external_port_base + item }} -> it-2003-ubuntu2404-{{ item }}"
       loop: "{{ range(0, vm_count) | list }}"
 
@@ -49,7 +49,7 @@
         jump: ACCEPT
         action: insert
         rule_num: 1
-        state: present
+        state: absent
         comment: "Allow forwarded SSH to it-2003-ubuntu2404-{{ item }}"
       loop: "{{ range(0, vm_count) | list }}"
     - name: DNAT external port 2443 to K8s API server (192.168.40.160:6443 TCP)
@@ -63,7 +63,7 @@
         to_destination: "192.168.40.160:6443"
         action: insert
         rule_num: 1
-        state: present
+        state: absent
         comment: "IT2003: DNAT K8s API: ext 2443 -> 192.168.40.160:6443"
     - name: DNAT external port 2194 to OpenVPN server (192.168.40.10:1194 UDP)
       ansible.builtin.iptables:
@@ -76,7 +76,7 @@
         to_destination: "192.168.40.10:1194"
         action: insert
         rule_num: 1
-        state: present
+        state: absent
         comment: "IT2003: DNAT OpenVPN: ext 2194/udp -> 192.168.40.10:1194"
     - name: Allow forwarded traffic to reach the OpenVPN server
       ansible.builtin.iptables:
@@ -87,22 +87,17 @@
         jump: ACCEPT
         action: insert
         rule_num: 1
-        state: present
+        state: absent
         comment: "IT2003: Allow forwarded OpenVPN UDP to 192.168.40.10"
     - name: Save iptables rules persistently
       ansible.builtin.command: netfilter-persistent save
       changed_when: true
-    - name: Add static route file for VPN client subnet
-      ansible.builtin.copy:
-        dest: /etc/network/interfaces.d/vpn-routes
-        content: |
-          # Managed by Ansible - static route for OpenVPN client subnet
-          iface it2003
-            post-up ip route replace 10.8.0.0/24 via 192.168.40.10
-            pre-down ip route del 10.8.0.0/24 via 192.168.40.10 || true
-        owner: root
-        group: root
-        mode: "0644"
-    - name: Apply the route immediately (idempotent)
-      ansible.builtin.command: ip route replace 10.8.0.0/24 via 192.168.40.10
-      changed_when: true
+    - name: Remove static route file for VPN client subnet
+      ansible.builtin.file:
+        path: /etc/network/interfaces.d/vpn-routes
+        state: absent
+    - name: Remove the route immediately (idempotent)
+      ansible.builtin.command: ip route del 10.8.0.0/24 via 192.168.40.10
+      register: vpn_route_del
+      changed_when: vpn_route_del.rc == 0
+      failed_when: vpn_route_del.rc != 0 and 'No such process' not in vpn_route_del.stderr
